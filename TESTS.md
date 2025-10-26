@@ -55,6 +55,12 @@ Troubleshooting
 - Python
   - ModuleNotFoundError: defusedxml: ensure you installed the Python test dependencies listed above.
   - Slow runs: use parallelization via pytest-xdist: -n auto (Linux/macOS). On Windows, avoid -n auto unless configured appropriately.
+  - Python 3.12 vs 3.11 (Enum/autodoc): CPython 3.12 introduced changes in enum.Enum internals and representation that result in different autodoc output compared to Python 3.11. As a consequence, running the Python test suite on 3.12 may produce a small number of expected failures in Enum-related autodoc tests (around 11 failures). If you need a fully green local run:
+    - Prefer Python 3.11 for local testing.
+    - Or skip Enum/autodoc-focused tests using pytest's -k filtering. Examples:
+      - python -m pytest -vv -k 'not enum'
+      - python -m pytest -vv -k 'not test_ext_autodoc and not util_inspect'
+    These examples are approximate and intended to exclude Enum-heavy autodoc tests; adjust the -k expressions to match your local needs.
 
 - JavaScript
   - The JS tests run via jasmine-browser-runner in a headless Firefox browser.
