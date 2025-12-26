@@ -390,10 +390,6 @@ class PyXrefMixin:
 
             if literal_depth > 0:
                 results.append(token_contnode or nodes.Text(sub_target))
-                literal_depth += sub_target.count('[')
-                literal_depth -= sub_target.count(']')
-                if literal_depth < 0:
-                    literal_depth = 0
                 continue
 
             normalized = sub_target.strip().rsplit('.', 1)[-1]
