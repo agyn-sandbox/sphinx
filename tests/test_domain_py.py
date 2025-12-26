@@ -255,6 +255,25 @@ def test_parse_annotation():
                           [pending_xref, "int"],
                           [desc_sig_punctuation, "]"]))
 
+    doctree = _parse_annotation("Tuple[()]")
+    assert_node(doctree, ([pending_xref, "Tuple"],
+                          [desc_sig_punctuation, "["],
+                          [desc_sig_punctuation, "("],
+                          [desc_sig_punctuation, ")"],
+                          [desc_sig_punctuation, "]"]))
+
+    doctree = _parse_annotation("Union[Tuple[()], int]")
+    assert_node(doctree, ([pending_xref, "Union"],
+                          [desc_sig_punctuation, "["],
+                          [pending_xref, "Tuple"],
+                          [desc_sig_punctuation, "["],
+                          [desc_sig_punctuation, "("],
+                          [desc_sig_punctuation, ")"],
+                          [desc_sig_punctuation, "]"],
+                          [desc_sig_punctuation, ", "],
+                          [pending_xref, "int"],
+                          [desc_sig_punctuation, "]"]))
+
     doctree = _parse_annotation("Callable[[int, int], int]")
     assert_node(doctree, ([pending_xref, "Callable"],
                           [desc_sig_punctuation, "["],
@@ -749,5 +768,4 @@ def test_modindex_common_prefix(app):
                 IndexEntry('sphinx_intl', 0, 'index', 'module-sphinx_intl', '', '', '')])],
         True
     )
-
 
