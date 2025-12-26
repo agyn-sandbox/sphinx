@@ -592,6 +592,20 @@ class Documenter:
         else:
             attr_docs = {}
 
+        private_option = self.options.private_members
+        if private_option is True:
+            private_option = ALL
+        include_all_private = (private_option is ALL)
+        selected_private = set()  # type: Set[str]
+        if not include_all_private and isinstance(private_option, (list, tuple, set)):
+            selected_private = {name for name in private_option if isinstance(name, str)}
+        pending_private = set(selected_private)
+
+        def is_private_selected(name: str) -> bool:
+            if include_all_private:
+                return True
+            return name in selected_private
+
         # process members and determine which to skip
         for (membername, member) in members:
             # if isattr is True, the member is documented as an attribute
@@ -625,6 +639,9 @@ class Documenter:
             else:
                 isprivate = membername.startswith('_')
 
+            if membername in pending_private:
+                pending_private.discard(membername)
+
             keep = False
             if safe_getattr(member, '__sphinx_mock__', False):
                 # mocked module or object
@@ -649,14 +666,14 @@ class Documenter:
             elif (namespace, membername) in attr_docs:
                 if want_all and isprivate:
                     # ignore members whose name starts with _ by default
-                    keep = self.options.private_members
+                    keep = is_private_selected(membername)
                 else:
                     # keep documented attributes
                     keep = True
                 isattr = True
             elif want_all and isprivate:
                 # ignore members whose name starts with _ by default
-                keep = self.options.private_members and \
+                keep = is_private_selected(membername) and \
                     (has_doc or self.options.undoc_members)
             else:
                 if self.options.members is ALL and is_filtered_inherited_member(membername):
@@ -683,6 +700,11 @@ class Documenter:
 
             if keep:
                 ret.append((membername, member, isattr))
+
+        if want_all and pending_private:
+            for missing in sorted(pending_private):
+                logger.warning(__('missing private member %s in object %s') %
+                               (missing, self.fullname), type='autodoc')
 
         return ret
 
@@ -859,7 +881,7 @@ class ModuleDocumenter(Documenter):
         'show-inheritance': bool_option, 'synopsis': identity,
         'platform': identity, 'deprecated': bool_option,
         'member-order': member_order_option, 'exclude-members': members_set_option,
-        'private-members': bool_option, 'special-members': members_option,
+        'private-members': members_option, 'special-members': members_option,
         'imported-members': bool_option, 'ignore-module-all': bool_option
     }  # type: Dict[str, Callable]
 
@@ -1279,7 +1301,7 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type: 
         'noindex': bool_option, 'inherited-members': inherited_members_option,
         'show-inheritance': bool_option, 'member-order': member_order_option,
         'exclude-members': members_set_option,
-        'private-members': bool_option, 'special-members': members_option,
+        'private-members': members_option, 'special-members': members_option,
     }  # type: Dict[str, Callable]
 
     _signature_class = None  # type: Any

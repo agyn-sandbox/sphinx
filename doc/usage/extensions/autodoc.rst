@@ -136,9 +136,31 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
            :undoc-members:
 
    * "Private" members (that is, those named like ``_private`` or ``__private``)
-     will be included if the ``private-members`` flag option is given.
+     will be included if the ``private-members`` option is given.  The option
+     accepts an optional comma-separated list of member names to document:
+
+        .. automodule:: noodle
+           :members:
+           :private-members: _mixed_sauce, _peel_vegetables
+
+        .. autoclass:: noodle.KitchenHelper
+           :members:
+           :private-members: _clean_counter, _reset_timer
+
+     Supplying the option without arguments keeps the previous behaviour of
+     including every private member.  When a list is provided, only the named
+     private members are considered; other private members remain hidden unless
+     the option is repeated in a more specific directive.  Members that lack
+     docstrings still require the ``undoc-members`` option, and entries named in
+     ``exclude-members`` are never emitted.  If a module defines ``__all__``,
+     remember to allow private members via ``:ignore-module-all:`` or by adding
+     them to ``__all__``.  A warning is emitted while collecting all members if
+     a listed private name cannot be found.
 
      .. versionadded:: 1.1
+
+     .. versionchanged:: 3.2
+        The option now accepts an optional comma-separated list of names.
 
    * autodoc considers a member private if its docstring contains
      ``:meta private:`` in its :ref:`info-field-lists`.
