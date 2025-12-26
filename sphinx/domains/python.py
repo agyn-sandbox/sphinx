@@ -1233,6 +1233,10 @@ class PythonDomain(Domain):
             if mod.docname in docnames:
                 self.modules[modname] = mod
 
+    def process_field_xref(self, pnode: pending_xref) -> None:
+        pnode['py:module'] = self.env.ref_context.get('py:module')
+        pnode['py:class'] = self.env.ref_context.get('py:class')
+
     def find_obj(self, env: BuildEnvironment, modname: str, classname: str,
                  name: str, type: str, searchmode: int = 0
                  ) -> List[Tuple[str, ObjectEntry]]:

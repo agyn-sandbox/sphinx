@@ -11,6 +11,8 @@
 import sys
 from unittest.mock import Mock
 
+from copy import deepcopy
+
 import pytest
 from docutils import nodes
 
@@ -20,10 +22,23 @@ from sphinx.addnodes import (desc, desc_addname, desc_annotation, desc_content, 
                              desc_sig_name, desc_sig_operator, desc_sig_punctuation,
                              desc_signature, pending_xref)
 from sphinx.domains import IndexEntry
-from sphinx.domains.python import (PythonDomain, PythonModuleIndex, _parse_annotation,
-                                   _pseudo_parse_arglist, py_sig_re)
+from sphinx.domains.python import (PyField, PyTypedField, PythonDomain, PythonModuleIndex,
+                                   _parse_annotation, _pseudo_parse_arglist, py_sig_re)
 from sphinx.testing import restructuredtext
 from sphinx.testing.util import assert_node
+
+
+class DummyEnv:
+    def __init__(self) -> None:
+        self.domaindata = {}
+        self.ref_context = {}
+        self.domains = {}
+        self.docname = 'doc'
+        self.temp_data = {}
+        self.config = Mock()
+
+    def get_domain(self, name: str):
+        return self.domains[name]
 
 
 def parse(sig):
@@ -113,11 +128,11 @@ def test_domain_py_xrefs(app, status, warning):
                    'ModTopLevel', 'class')
     assert_refnode(refnodes[8], 'module_b.submodule', 'ModTopLevel',
                    'ModNoModule', 'class')
-    assert_refnode(refnodes[9], False, False, 'int', 'class')
-    assert_refnode(refnodes[10], False, False, 'tuple', 'class')
-    assert_refnode(refnodes[11], False, False, 'str', 'class')
-    assert_refnode(refnodes[12], False, False, 'float', 'class')
-    assert_refnode(refnodes[13], False, False, 'list', 'class')
+    assert_refnode(refnodes[9], 'module_b.submodule', None, 'int', 'class')
+    assert_refnode(refnodes[10], 'module_b.submodule', None, 'tuple', 'class')
+    assert_refnode(refnodes[11], 'module_b.submodule', None, 'str', 'class')
+    assert_refnode(refnodes[12], 'module_b.submodule', None, 'float', 'class')
+    assert_refnode(refnodes[13], 'module_b.submodule', None, 'list', 'class')
     assert_refnode(refnodes[14], False, False, 'ModTopLevel', 'class')
     assert_refnode(refnodes[15], False, False, 'index', 'doc', domain='std')
     assert len(refnodes) == 16
@@ -204,6 +219,61 @@ def test_domain_py_find_obj(app, status, warning):
     assert (find_obj(None, 'NestedParentA.NestedChildA', 'subchild_1', 'meth') ==
             [('NestedParentA.NestedChildA.subchild_1',
               ('roles', 'NestedParentA.NestedChildA.subchild_1', 'method'))])
+
+
+def test_docfield_pending_xref_includes_scope():
+    env = DummyEnv()
+    domain = PythonDomain(env)
+    env.domains['py'] = domain
+
+    env.ref_context['py:module'] = 'mod.submod'
+    env.ref_context['py:class'] = 'Outer'
+
+    typed_field = PyTypedField('parameter', names=('param',), typenames=('type',),
+                               label='Parameters', typerolename='class')
+    type_xref = typed_field.make_xref('class', 'py', 'A', env=env)
+    assert isinstance(type_xref, pending_xref)
+    assert type_xref['py:module'] == 'mod.submod'
+    assert type_xref['py:class'] == 'Outer'
+
+    return_field = PyField('returntype', names=('rtype',), label='Return type',
+                           has_arg=False, bodyrolename='class')
+    return_xref = return_field.make_xref('class', 'py', 'A', env=env)
+    assert isinstance(return_xref, pending_xref)
+    assert return_xref['py:module'] == 'mod.submod'
+    assert return_xref['py:class'] == 'Outer'
+
+
+def test_docfield_xref_resolution_prefers_current_scope():
+    env = DummyEnv()
+    domain = PythonDomain(env)
+    env.domains['py'] = domain
+
+    env.docname = 'mod_doc'
+    domain.note_object('mod.A', 'class', 'mod.A')
+    env.docname = 'sub_doc'
+    domain.note_object('mod.submod.A', 'class', 'mod.submod.A')
+
+    env.ref_context['py:module'] = 'mod.submod'
+    env.ref_context['py:class'] = 'Outer'
+
+    field = PyField('returntype', names=('rtype',), label='Return type', has_arg=False,
+                    bodyrolename='class')
+    xref = field.make_xref('class', 'py', 'A', env=env)
+
+    ambiguous = domain.find_obj(env, None, None, 'A', 'class', searchmode=1)
+    assert {name for name, _ in ambiguous} == {'mod.A', 'mod.submod.A'}
+
+    scoped = domain.find_obj(env, xref.get('py:module'), xref.get('py:class'),
+                             xref['reftarget'], 'class', searchmode=1)
+    assert scoped == [('mod.submod.A', domain.objects['mod.submod.A'])]
+
+    builder = Mock()
+    contnode = deepcopy(xref[0])
+    result = domain.resolve_xref(env, 'sub_doc', builder, 'class', xref['reftarget'], xref,
+                                 contnode)
+    assert isinstance(result, nodes.reference)
+    assert result['refid'] == 'mod.submod.A'
 
 
 def test_get_full_qualified_name():
