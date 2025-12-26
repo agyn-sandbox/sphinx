@@ -349,11 +349,65 @@ class Documenter:
         self.parent = None          # type: Any
         # the module analyzer to get at attribute docs, or None
         self.analyzer = None        # type: ModuleAnalyzer
+        # memoized analyzers for base classes
+        self._mro_analyzers = {}    # type: Dict[str, Optional[ModuleAnalyzer]]
 
     @property
     def documenters(self) -> Dict[str, "Type[Documenter]"]:
         """Returns registered Documenter classes"""
         return self.env.app.registry.documenters
+
+    def _get_inherited_doc_store(self) -> Dict[type, Dict[str, Optional[List[str]]]]:
+        store = getattr(self.directive, '_autodoc_inherited_attr_docs', None)
+        if store is None:
+            store = {}
+            self.directive._autodoc_inherited_attr_docs = store
+        return store
+
+    def _get_mro_analyzer(self, modname: str) -> Optional[ModuleAnalyzer]:
+        if modname in self._mro_analyzers:
+            return self._mro_analyzers[modname]
+
+        analyzer = None
+        try:
+            analyzer = ModuleAnalyzer.for_module(modname)
+            analyzer.find_attr_docs()
+        except PycodeError as exc:
+            logger.debug('[autodoc] module analyzer failed for %s: %s', modname, exc)
+            analyzer = None
+
+        self._mro_analyzers[modname] = analyzer
+        if analyzer:
+            self.directive.filename_set.add(analyzer.srcname)
+        return analyzer
+
+    def _lookup_inherited_doc(self, attrname: str) -> Optional[List[str]]:
+        if not inspect.isclass(self.object):
+            return None
+
+        store = self._get_inherited_doc_store()
+        class_store = store.setdefault(self.object, {})
+        if attrname in class_store:
+            return class_store[attrname]
+
+        for base in self.object.__mro__[1:]:  # type: ignore[attr-defined]
+            modname = safe_getattr(base, '__module__', None)
+            qualname = safe_getattr(base, '__qualname__', None)
+            if not modname or not qualname:
+                continue
+
+            analyzer = self._get_mro_analyzer(modname)
+            if analyzer is None:
+                continue
+
+            attr_docs = analyzer.find_attr_docs()
+            if (qualname, attrname) in attr_docs:
+                doc = list(attr_docs[(qualname, attrname)])
+                class_store[attrname] = doc
+                return doc
+
+        class_store[attrname] = None
+        return None
 
     def add_line(self, line: str, source: str, *lineno: int) -> None:
         """Append one line of generated reST to the output."""
@@ -607,6 +661,17 @@ class Documenter:
                     for i, line in enumerate(self.process_doc(docstrings)):
                         self.add_line(line, sourcename, i)
 
+        if (not no_docstring and self.options.inherited_members and self.objpath and
+                inspect.isclass(self.parent)):
+            store = getattr(self.directive, '_autodoc_inherited_attr_docs', {})
+            inherited_doc = store.get(self.parent, {}).get(self.objpath[-1])
+            if inherited_doc:
+                no_docstring = True
+                docstrings = [list(inherited_doc)]
+
+                for i, line in enumerate(self.process_doc(docstrings)):
+                    self.add_line(line, sourcename, i)
+
         # add content from docstrings
         if not no_docstring:
             docstrings = self.get_doc()
@@ -718,6 +783,13 @@ class Documenter:
 
             has_doc = bool(doc)
 
+            if ((namespace, membername) not in attr_docs and not has_doc and
+                    self.options.inherited_members and inspect.isclass(self.object) and
+                    member is not INSTANCEATTR and
+                    self._lookup_inherited_doc(membername)):
+                has_doc = True
+                isattr = True
+
             metadata = extract_metadata(doc)
             if 'private' in metadata:
                 # consider a member private if docstring has "private" metadata
@@ -743,7 +815,11 @@ class Documenter:
                     elif is_filtered_inherited_member(membername):
                         keep = False
                     else:
-                        keep = has_doc or self.options.undoc_members
+                        if (membername == '__annotations__' and
+                                self.options.special_members is ALL):
+                            keep = False
+                        else:
+                            keep = has_doc or self.options.undoc_members
                 else:
                     keep = False
             elif (namespace, membername) in attr_docs:
@@ -899,6 +975,8 @@ class Documenter:
         guess_modname = self.get_real_modname()
         self.real_modname = real_modname or guess_modname
 
+        self._mro_analyzers = {}
+
         # try to also get a source code analyzer for attribute docs
         try:
             self.analyzer = ModuleAnalyzer.for_module(self.real_modname)
@@ -922,6 +1000,13 @@ class Documenter:
                 self.directive.filename_set.add(analyzer.srcname)
             except PycodeError:
                 pass
+
+        if self.options.inherited_members and inspect.isclass(self.object):
+            for base in getattr(self.object, '__mro__', ())[1:]:  # type: ignore[attr-defined]
+                modname = safe_getattr(base, '__module__', None)
+                if not modname:
+                    continue
+                self._get_mro_analyzer(modname)
 
         # check __module__ of object (for members not given explicitly)
         if check_module:
