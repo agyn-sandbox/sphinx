@@ -376,7 +376,28 @@ class Include(BaseInclude, SphinxDirective):
         rel_filename, filename = self.env.relfn2path(self.arguments[0])
         self.arguments[0] = filename
         self.env.note_included(filename)
-        return super().run()
+        listeners = self.env.events.listeners.get('source-read')
+        if not listeners:
+            return super().run()
+
+        original_insert = self.state_machine.insert_input
+
+        def _insert_input(include_lines: list[str], path: str) -> None:
+            text = "\n".join(include_lines)
+            include_docname = self.env.path2doc(path)
+            if include_docname is not None:
+                arg = [text]
+                self.env.events.emit('source-read', include_docname, arg)
+                text = arg[0]
+                include_lines = text.splitlines()
+
+            original_insert(include_lines, path)
+
+        self.state_machine.insert_input = _insert_input
+        try:
+            return super().run()
+        finally:
+            self.state_machine.insert_input = original_insert
 
 
 def setup(app: Sphinx) -> dict[str, Any]:
