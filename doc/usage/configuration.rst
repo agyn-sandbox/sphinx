@@ -750,9 +750,9 @@ documentation on :ref:`intl` for details.
    means earlier entries in :confval:`locale_dirs` override later ones and the
    packaged translations.
 
-   When :confval:`gettext_auto_build` is enabled (the default), catalogs listed
-   here are compiled before loading so that project-local overrides take
-   effect without running :program:`msgfmt` manually.
+   Sphinx compiles any out-of-date ``.po`` files found here into ``.mo`` files
+   at startup for the ``sphinx`` domain, so project-local overrides take effect
+   without running :program:`msgfmt` manually.
 
    The default is ``['locales']``.
 
@@ -804,10 +804,6 @@ documentation on :ref:`intl` for details.
 .. confval:: gettext_auto_build
 
    If true, Sphinx builds mo file for each translation catalog files.
-
-   The auto-build step runs for project-local catalogs in
-   :confval:`locale_dirs`, ensuring their overrides of bundled messages are
-   available during initialization.
 
    The default is ``True``.
 
