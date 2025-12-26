@@ -208,6 +208,46 @@ def test_domain_py_find_obj(app, status, warning):
               ('roles', 'NestedParentA.NestedChildA.subchild_1', 'method', False))])
 
 
+@pytest.mark.sphinx('dummy', testroot='variable-xrefs')
+def test_variable_docfield_uses_xref_by_default(app, status, warning):
+    app.builder.build_all()
+
+    doctree = app.env.get_doctree('index')
+    variable_field = next(iter(doctree.traverse(nodes.field)))
+    xrefs = list(variable_field.traverse(pending_xref))
+
+    assert len(xrefs) == 2
+    assert_node(xrefs[0], pending_xref, refdomain='py', reftype='obj', reftarget='foo')
+    assert_node(xrefs[1], pending_xref, refdomain='py', reftype='class', reftarget='int')
+
+
+@pytest.mark.sphinx('dummy', testroot='variable-xrefs',
+                    confoverrides={'python_docstring_variable_xrefs': False})
+def test_variable_docfield_renders_literal_when_disabled(app, status, warning):
+    app.builder.build_all()
+
+    doctree = app.env.get_doctree('index')
+    variable_field = next(iter(doctree.traverse(nodes.field)))
+    xrefs = list(variable_field.traverse(pending_xref))
+
+    assert len(xrefs) == 1
+    assert_node(xrefs[0], pending_xref, refdomain='py', reftype='class', reftarget='int')
+
+    literal = variable_field.traverse(addnodes.literal_strong)[0]
+    assert literal.astext() == 'foo'
+    assert not isinstance(literal.parent, pending_xref)
+
+
+@pytest.mark.sphinx('html', testroot='variable-xrefs',
+                    confoverrides={'python_docstring_variable_xrefs': False})
+def test_variable_docfield_html_has_no_links_when_disabled(app, status, warning):
+    app.builder.build_all()
+
+    html = (app.outdir / 'index.html').read_text()
+    assert '<dd class="field-odd"><p><strong>foo</strong>' in html
+    assert '<dd class="field-odd"><p><a class="reference internal" href="#foo"' not in html
+
+
 def test_get_full_qualified_name():
     env = Mock(domaindata={})
     domain = PythonDomain(env)
