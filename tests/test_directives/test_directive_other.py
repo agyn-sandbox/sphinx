@@ -209,3 +209,40 @@ def test_include_include_read_event_nested_includes(app):
     assert len(doctree.children) == 3
     assert_node(doctree.children[1], nodes.paragraph)
     assert doctree.children[1].rawsource == 'The amazing foo.'
+
+
+@pytest.mark.sphinx('html', testroot='directive-include')
+def test_include_source_read_event_for_included_rst(app: SphinxTestApp) -> None:
+    """Ensure that source-read is emitted for included RST files and
+    transformations are applied to the built doctree.
+    """
+
+    sources_reported: list[tuple[str, str]] = []
+
+    def source_read_handler(_app, docname: str, source: list[str]) -> None:
+        # Record which docnames were reported
+        sources_reported.append((docname, source[0]))
+        # Apply a simple transformation to included content
+        source[0] = source[0].replace('Baz', 'Qux')
+
+    app.connect('source-read', source_read_handler)
+    text = """\
+.. include:: baz/baz.rst
+"""
+    app.env.find_files(app.config, app.builder)
+    doctree = restructuredtext.parse(app, text, 'index')
+
+    # source-read should be emitted for the included rst file as well as for the
+    # parent document. The included docname should be the include path without suffix.
+    # e.g. 'baz/baz'
+    included_docname = 'baz/baz'
+    reported_docnames = {d for d, _ in sources_reported}
+    assert included_docname in reported_docnames
+    assert 'index' in reported_docnames
+
+    # Confirm that the transformation applied via source-read affected included content
+    # (Baz -> Qux)
+    assert_node(doctree, addnodes.document)
+    assert len(doctree.children) >= 2
+    assert_node(doctree.children[1], nodes.paragraph)
+    assert 'Qux was here.' in doctree.children[1].astext()

@@ -164,6 +164,13 @@ Here is a more detailed list of these events.
       representing the content of the included file.
 
    Emitted when a source file has been read.
+   In addition to top-level documents, Sphinx also emits this event for
+   content read via the :dudir:`include` directive to support extensions
+   that transform included reStructuredText using ``source-read``.
+   The ``docname`` for included content corresponds to the included file’s
+   document name (path relative to the source directory, without suffix).
+   Non-reStructuredText includes (e.g. ``:literal:`` or files with
+   unregistered suffixes) do not trigger this event.
 
    You can process the ``content`` and
    replace this item to implement source-level transformations.

@@ -388,12 +388,23 @@ class Include(BaseInclude, SphinxDirective):
             text = '\n'.join(include_lines[:-2])
 
             path = Path(relpath(Path(source).resolve(), start=self.env.srcdir))
-            docname = self.env.current_document.docname
+            # Derive an include docname (if any) from the path and configured suffixes.
+            include_docname = self.env.path2doc(path)
+            parent_docname = self.env.current_document.docname
 
             # Emit the "include-read" event
             arg = [text]
-            self.env.events.emit('include-read', path, docname, arg)
+            self.env.events.emit('include-read', path, parent_docname, arg)
             text = arg[0]
+
+            # Also emit the legacy "source-read" event for included RST files
+            # so extensions relying on it can still transform included content.
+            # Only emit when the included file is recognized as a Sphinx document
+            # (i.e. has a known source_suffix), to avoid emitting for literal/text includes.
+            if include_docname is not None:
+                arg2 = [text]
+                self.env.events.emit('source-read', include_docname, arg2)
+                text = arg2[0]
 
             # Split back into lines and reattach the two marker lines
             include_lines = text.splitlines() + include_lines[-2:]
@@ -403,8 +414,9 @@ class Include(BaseInclude, SphinxDirective):
             # the *Instance* method and this call is to the *Class* method.
             return StateMachine.insert_input(self.state_machine, include_lines, source)
 
-        # Only enable this patch if there are listeners for 'include-read'.
-        if self.env.events.listeners.get('include-read'):
+        # Only enable this patch if there are listeners for 'include-read'
+        # or for 'source-read' (legacy behavior expected by some extensions).
+        if self.env.events.listeners.get('include-read') or self.env.events.listeners.get('source-read'):
             # See https://github.com/python/mypy/issues/2427 for details on the mypy issue
             self.state_machine.insert_input = _insert_input
 
