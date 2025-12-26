@@ -11,3 +11,5 @@
 .. autofunction:: target.typehints.incr
 
 .. autofunction:: target.typehints.tuple_args
+
+.. include:: inherited_attrs.rst
