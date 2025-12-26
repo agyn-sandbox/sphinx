@@ -11,7 +11,9 @@
 import json
 import re
 from unittest import mock
+
 import pytest
+from requests.exceptions import HTTPError
 
 
 @pytest.mark.sphinx('linkcheck', testroot='linkcheck', freshenv=True)
@@ -85,6 +87,33 @@ def test_defaults_json(app, status, warning):
     # images should fail
     assert "Not Found for url: https://www.google.com/image.png" in \
         rowsby["https://www.google.com/image.png"]["info"]
+
+
+@pytest.mark.sphinx('linkcheck', testroot='linkcheck-anchor-404', freshenv=True)
+def test_anchor_404_reports_http_status(app, status, warning):
+    http_error = HTTPError(
+        '404 Client Error: Not Found for url: https://example.com/status/404'
+    )
+    http_error.response = mock.Mock(status_code=404, reason='Not Found')
+
+    fake_response = mock.Mock()
+    fake_response.raise_for_status.side_effect = http_error
+    fake_response.url = 'https://example.com/status/404'
+    fake_response.history = []
+
+    fake_head = mock.Mock(side_effect=AssertionError('HEAD should not be called for anchors'))
+
+    with mock.patch('sphinx.util.requests.get', return_value=fake_response) as mock_get, \
+         mock.patch('sphinx.util.requests.head', fake_head):
+        app.builder.build_all()
+
+    mock_get.assert_called_once()
+    fake_head.assert_not_called()
+    fake_response.raise_for_status.assert_called_once()
+
+    content = (app.outdir / 'output.txt').read_text()
+    assert "Anchor 'missing' not found" not in content
+    assert '404 Client Error: Not Found for url: https://example.com/status/404' in content
 
 
 @pytest.mark.sphinx(
