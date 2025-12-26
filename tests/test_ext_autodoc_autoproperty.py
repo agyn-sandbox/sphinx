@@ -26,3 +26,74 @@ def test_properties(app):
         '   docstring',
         '',
     ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_classmethod_property(app):
+    actual = do_autodoc(app, 'property', 'target.classmethod_properties.Basic.value')
+    assert list(actual) == [
+        '',
+        '.. py:property:: Basic.value',
+        '   :module: target.classmethod_properties',
+        '   :type: int',
+        '',
+        '   Class-level counter.',
+        '',
+    ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_classmethod_property_inherited(app):
+    actual = do_autodoc(app, 'property', 'target.classmethod_properties.Inherited.value')
+    assert list(actual) == [
+        '',
+        '.. py:property:: Inherited.value',
+        '   :module: target.classmethod_properties',
+        '   :type: int',
+        '',
+        '   Class-level counter.',
+        '',
+    ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_classmethod_property_abstract(app):
+    actual = do_autodoc(app, 'property', 'target.classmethod_properties.AbstractBase.token')
+    assert list(actual) == [
+        '',
+        '.. py:property:: AbstractBase.token',
+        '   :module: target.classmethod_properties',
+        '   :abstractmethod:',
+        '   :type: str',
+        '',
+        '   Abstract identifier.',
+        '',
+    ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_classmethod_property_concrete(app):
+    actual = do_autodoc(app, 'property', 'target.classmethod_properties.AbstractImpl.token')
+    assert list(actual) == [
+        '',
+        '.. py:property:: AbstractImpl.token',
+        '   :module: target.classmethod_properties',
+        '   :type: str',
+        '',
+        '   Real identifier.',
+        '',
+    ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_classmethod_property_metaclass(app):
+    actual = do_autodoc(app, 'property', 'target.classmethod_properties.WithMeta.label')
+    assert list(actual) == [
+        '',
+        '.. py:property:: WithMeta.label',
+        '   :module: target.classmethod_properties',
+        '   :type: str',
+        '',
+        '   Metaclass provided label.',
+        '',
+    ]

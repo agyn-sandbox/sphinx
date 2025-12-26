@@ -358,9 +358,37 @@ def test_autosummary_generate_overwrite1(app_params, make_app):
     (srcdir / 'generated').makedirs(exist_ok=True)
     (srcdir / 'generated' / 'autosummary_dummy_module.rst').write_text('')
 
-    app = make_app(*args, **kwargs)
+    make_app(*args, **kwargs)
     content = (srcdir / 'generated' / 'autosummary_dummy_module.rst').read_text()
     assert content == ''
+
+
+@pytest.mark.sphinx('dummy', testroot='ext-autosummary-classmethod')
+def test_autosummary_classmethod_properties(app, status, warning):
+    app.builder.build_all()
+
+    assert warning.getvalue() == ''
+
+    doctree = app.env.get_doctree('index')
+    text = doctree.astext()
+    assert 'target.classmethod_properties.Basic.value' in text
+    assert 'target.classmethod_properties.AbstractBase.token' in text
+    assert 'target.classmethod_properties.WithMeta.label' in text
+
+    basic = app.env.get_doctree('generated/target.classmethod_properties.Basic.value')
+    basic_text = basic.astext()
+    assert 'Class-level counter.' in basic_text
+    assert 'property Basic.value: int' in basic_text
+
+    abstract = app.env.get_doctree('generated/target.classmethod_properties.AbstractBase.token')
+    abstract_text = abstract.astext()
+    assert 'Abstract identifier.' in abstract_text
+    assert 'abstract property AbstractBase.token: str' in abstract_text
+
+    meta = app.env.get_doctree('generated/target.classmethod_properties.WithMeta.label')
+    meta_text = meta.astext()
+    assert 'Metaclass provided label.' in meta_text
+    assert 'property WithMeta.label: str' in meta_text
     assert 'autosummary_dummy_module.rst' not in app._warning.getvalue()
 
 

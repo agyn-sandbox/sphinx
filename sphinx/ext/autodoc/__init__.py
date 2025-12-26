@@ -2658,10 +2658,89 @@ class PropertyDocumenter(DocstringStripSignatureMixin, ClassLevelDocumenter):  #
     # before AttributeDocumenter
     priority = AttributeDocumenter.priority + 1
 
+    @staticmethod
+    def _find_declared_attribute(owner: Any, name: str) -> Any:
+        if not isinstance(owner, type):
+            return None
+
+        for base in inspect.getmro(owner):
+            if name in base.__dict__:
+                return base.__dict__[name]
+
+        return None
+
+    @classmethod
+    def _get_property_descriptor(cls, owner: Any, name: str) -> Optional[property]:
+        if owner is None:
+            return None
+
+        raw = cls._find_declared_attribute(owner, name)
+        descriptor = cls._unwrap_property(raw)
+        if descriptor:
+            return descriptor
+
+        metaclass = getattr(owner, '__class__', None)
+        if isinstance(owner, type) and isinstance(metaclass, type):
+            raw = cls._find_declared_attribute(metaclass, name)
+            descriptor = cls._unwrap_property(raw)
+            if descriptor:
+                return descriptor
+
+        return None
+
+    @staticmethod
+    def _unwrap_property(candidate: Any) -> Optional[property]:
+        if inspect.isproperty(candidate):
+            return candidate
+
+        if inspect.isclassmethod(candidate):
+            unwrapped = getattr(candidate, '__wrapped__', None)
+            if unwrapped is None:
+                unwrapped = getattr(candidate, '__func__', None)
+            if inspect.isproperty(unwrapped):
+                return unwrapped
+
+        return None
+
+    @staticmethod
+    def _is_abstract_property(descriptor: Any) -> bool:
+        if descriptor is None:
+            return False
+
+        if inspect.isabstractmethod(descriptor):
+            return True
+
+        fget = safe_getattr(descriptor, 'fget', None)
+        return bool(getattr(fget, '__isabstractmethod__', False))
+
     @classmethod
     def can_document_member(cls, member: Any, membername: str, isattr: bool, parent: Any
                             ) -> bool:
-        return inspect.isproperty(member) and isinstance(parent, ClassDocumenter)
+        if not isinstance(parent, ClassDocumenter):
+            return False
+
+        if inspect.isproperty(member):
+            return True
+
+        owner = getattr(parent, 'object', None)
+        descriptor = cls._get_property_descriptor(owner, membername)
+        return descriptor is not None
+
+    def import_object(self, raiseerror: bool = False) -> bool:
+        ret = super().import_object(raiseerror)
+        if not ret:
+            return ret
+
+        name = self.object_name or (self.objpath[-1] if self.objpath else None)
+        descriptor = None
+        if name:
+            descriptor = self._get_property_descriptor(self.parent, name)
+
+        if descriptor:
+            self.object = descriptor
+
+        self._property_is_abstract = self._is_abstract_property(self.object)
+        return ret
 
     def document_members(self, all_members: bool = False) -> None:
         pass
@@ -2673,7 +2752,11 @@ class PropertyDocumenter(DocstringStripSignatureMixin, ClassLevelDocumenter):  #
     def add_directive_header(self, sig: str) -> None:
         super().add_directive_header(sig)
         sourcename = self.get_sourcename()
-        if inspect.isabstractmethod(self.object):
+        is_abstract = getattr(self, '_property_is_abstract', None)
+        if is_abstract is None:
+            is_abstract = inspect.isabstractmethod(self.object)
+
+        if is_abstract:
             self.add_line('   :abstractmethod:', sourcename)
 
         if safe_getattr(self.object, 'fget', None) and self.config.autodoc_typehints != 'none':
