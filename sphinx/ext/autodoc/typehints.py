@@ -132,8 +132,8 @@ def augment_descriptions_with_types(
     annotations: Dict[str, str],
 ) -> None:
     fields = cast(Iterable[nodes.field], node)
-    has_description = set()  # type: Set[str]
-    has_type = set()  # type: Set[str]
+    has_description: Set[str] = set()
+    has_type: Set[str] = set()
     for field in fields:
         field_name = field[0].astext()
         parts = re.split(' +', field_name)
@@ -149,7 +149,7 @@ def augment_descriptions_with_types(
         elif parts[0] == 'type':
             name = ' '.join(parts[1:])
             has_type.add(name)
-        elif parts[0] == 'return':
+        elif parts[0] in ('return', 'returns'):
             has_description.add('return')
         elif parts[0] == 'rtype':
             has_type.add('return')

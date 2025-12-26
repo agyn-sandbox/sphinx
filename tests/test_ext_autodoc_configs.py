@@ -866,6 +866,30 @@ def test_autodoc_typehints_description_no_undoc(app):
             in context)
 
 
+@pytest.mark.sphinx(
+    'text',
+    testroot='ext-autodoc',
+    confoverrides={
+        'extensions': ['sphinx.ext.autodoc', 'sphinx.ext.napoleon'],
+        'napoleon_google_docstring': True,
+        'autodoc_typehints': 'description',
+        'autodoc_typehints_description_target': 'documented',
+    },
+)
+def test_autodoc_typehints_description_google_returns(app):
+    (app.srcdir / 'index.rst').write_text(
+        '.. autofunction:: target.google_style_returns.documented_return\n'
+    )
+    app.build()
+    context = (app.outdir / 'index.txt').read_text()
+    assert ('   Returns:\n'
+            '      Greeting message.\n'
+            in context)
+    assert ('   Return type:\n'
+            '      str\n'
+            in context)
+
+
 @pytest.mark.sphinx('text', testroot='ext-autodoc',
                     confoverrides={'autodoc_typehints': "description"})
 def test_autodoc_typehints_description_with_documented_init(app):
