@@ -322,6 +322,40 @@ def test_autodoc_docstring_signature(app):
 
 
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_autodoc_docstring_multiple_signatures(app):
+    app.config.autodoc_docstring_signature = True
+    actual = do_autodoc(app, 'method', 'target.MultiSigDocstring.overloaded')
+    lines = list(actual)
+
+    assert lines[1] == '.. py:method:: MultiSigDocstring.overloaded(x: int) -> int'
+    assert any(line.strip() == 'MultiSigDocstring.overloaded(x: str, y=None) -> str'
+               for line in lines)
+    assert any(line.strip() == 'MultiSigDocstring.overloaded() -> None'
+               for line in lines)
+
+    app.config.autodoc_docstring_signature = False
+    actual = do_autodoc(app, 'method', 'target.MultiSigDocstring.overloaded')
+    lines = list(actual)
+
+    assert lines[1] == '.. py:method:: MultiSigDocstring.overloaded()'
+    stripped = [line.strip() for line in lines]
+    assert 'overloaded(x: int) -> int' in stripped
+    assert 'overloaded(x: str, y=None) -> str' in stripped
+    assert 'overloaded() -> None' in stripped
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_autodoc_docstring_signature_alias_line(app):
+    app.config.autodoc_docstring_signature = True
+    actual = do_autodoc(app, 'method', 'target.MultiSigDocstring.with_alias')
+    lines = list(actual)
+
+    assert lines[1] == '.. py:method:: MultiSigDocstring.with_alias(x: int) -> int'
+    assert any(line.strip() == 'Alias: MultiSigDocstring.overloaded' for line in lines)
+    assert any(line.strip() == 'Alias description.' for line in lines)
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_autoclass_content_and_docstring_signature_class(app):
     app.config.autoclass_content = 'class'
     options = {"members": None,

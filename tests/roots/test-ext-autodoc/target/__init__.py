@@ -144,6 +144,25 @@ First line of docstring
         return 456
 
 
+class MultiSigDocstring:
+    def overloaded(self):
+        """overloaded(x: int) -> int
+overloaded(x: str, y=None) -> str
+overloaded() -> None
+
+        Docstring body after signatures.
+        """
+        pass
+
+    def with_alias(self):
+        """with_alias(x: int) -> int
+Alias: MultiSigDocstring.overloaded
+
+        Alias description.
+        """
+        pass
+
+
 class StrRepr(str):
     """docstring"""
 
