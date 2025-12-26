@@ -87,6 +87,7 @@ from sphinx.registry import SphinxComponentRegistry
 from sphinx.util import logging, rst
 from sphinx.util.docutils import (NullReporter, SphinxDirective, SphinxRole, new_document,
                                   switch_source_input)
+from sphinx.util.inspect import safe_getattr
 from sphinx.util.matching import Matcher
 from sphinx.util.typing import OptionSpec
 from sphinx.writers.html import HTMLTranslator
@@ -221,10 +222,45 @@ def get_documenter(app: Sphinx, obj: Any, parent: Any) -> Type[Documenter]:
         parent_doc = parent_doc_cls(FakeDirective(), parent.__name__)
     else:
         parent_doc = parent_doc_cls(FakeDirective(), "")
+    parent_doc.object = parent
+
+    membername = ''
+    if parent is not None:
+        candidate_names = []
+        try:
+            candidate_names.extend(dir(parent))
+        except Exception:
+            candidate_names = []
+
+        if isinstance(parent, type):
+            for meta in inspect.getmro(parent.__class__):
+                candidate_names.extend(meta.__dict__.keys())
+
+        checked = set()
+        for attr in candidate_names:
+            if attr in checked:
+                continue
+            checked.add(attr)
+
+            try:
+                value = safe_getattr(parent, attr)
+            except AttributeError:
+                continue
+
+            if value is obj:
+                membername = attr
+                break
+
+            try:
+                if value == obj:
+                    membername = attr
+                    break
+            except Exception:
+                continue
 
     # Get the corrent documenter class for *obj*
     classes = [cls for cls in app.registry.documenters.values()
-               if cls.can_document_member(obj, '', False, parent_doc)]
+               if cls.can_document_member(obj, membername, False, parent_doc)]
     if classes:
         classes.sort(key=lambda cls: cls.priority)
         return classes[-1]
