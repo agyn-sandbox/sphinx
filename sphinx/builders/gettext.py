@@ -53,6 +53,9 @@ class Catalog:
         if msg not in self.metadata:  # faster lookup in hash
             self.messages.append(msg)
             self.metadata[msg] = []
+        for source, line, _uuid in self.metadata[msg]:
+            if source == origin.source and line == origin.line:
+                return
         self.metadata[msg].append((origin.source, origin.line, origin.uid))  # type: ignore
 
     def __iter__(self) -> Generator[Message, None, None]:
@@ -203,6 +206,18 @@ def should_write(filepath: str, new_content: str) -> bool:
     return True
 
 
+def normalize_and_dedupe_locations(
+    positions: Iterable[Tuple[str, int]],
+    outdir: str,
+) -> List[Tuple[str, int]]:
+    normalized: Set[Tuple[str, int]] = set()
+    for source, line in positions:
+        rel_source = canon_path(relpath(source, outdir))
+        normalized.add((rel_source, line))
+
+    return sorted(normalized, key=lambda item: (item[0], item[1]))
+
+
 class MessageCatalogBuilder(I18nBuilder):
     """
     Builds gettext-style message catalogs (.pot files).
@@ -269,7 +284,14 @@ class MessageCatalogBuilder(I18nBuilder):
             # noop if config.gettext_compact is set
             ensuredir(path.join(self.outdir, path.dirname(textdomain)))
 
-            context['messages'] = list(catalog)
+            messages = list(catalog)
+            for message in messages:
+                message.locations = normalize_and_dedupe_locations(
+                    message.locations,
+                    self.outdir,
+                )
+
+            context['messages'] = messages
             content = GettextRenderer(outdir=self.outdir).render('message.pot_t', context)
 
             pofn = path.join(self.outdir, textdomain + '.pot')
