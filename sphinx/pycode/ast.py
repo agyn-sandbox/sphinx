@@ -168,16 +168,21 @@ class _UnparseVisitor(ast.NodeVisitor):
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
 
-        if isinstance(node.slice, ast.Tuple):
-            if not node.slice.elts:
+        slice_node = node.slice
+        # Python < 3.9 compatibility: unwrap Index slices
+        if hasattr(ast, 'Index') and isinstance(slice_node, ast.Index):
+            slice_node = slice_node.value
+
+        if isinstance(slice_node, ast.Tuple):
+            if not slice_node.elts:
                 slice_repr = "()"
             else:
-                elements = ", ".join(self.visit(e) for e in node.slice.elts)
-                if len(node.slice.elts) == 1:
+                elements = ", ".join(self.visit(e) for e in slice_node.elts)
+                if len(slice_node.elts) == 1:
                     elements += ","
                 slice_repr = elements
         else:
-            slice_repr = self.visit(node.slice)
+            slice_repr = self.visit(slice_node)
 
         return "%s[%s]" % (value, slice_repr)
 
