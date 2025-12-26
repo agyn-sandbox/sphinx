@@ -659,6 +659,22 @@ There are also config values that you can set:
    .. __: https://mypy.readthedocs.io/en/latest/kinds_of_types.html#type-aliases
    .. versionadded:: 3.3
 
+.. confval:: autodoc_enum_default_rendering
+
+   Controls how Enum default argument values are rendered in autodoc-generated
+   signatures. The supported values are:
+
+   * ``'repr'`` (default) -- use :func:`repr` on the Enum member (the existing
+     behaviour).
+   * ``'name'`` -- show the member as ``EnumClass.member``.
+   * ``'qualified_name'`` -- include the full module path and qualified name.
+   * ``'value'`` -- render the underlying value of the Enum member.
+
+   When :confval:`autodoc_preserve_defaults` is enabled, the original source
+   text is kept regardless of this setting.
+
+   .. versionadded:: 4.1
+
 .. confval:: autodoc_preserve_defaults
 
    If True, the default argument values of functions will be not evaluated on
