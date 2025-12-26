@@ -10,6 +10,7 @@
 
 import ast
 import datetime
+import enum
 import functools
 import sys
 import types
@@ -19,7 +20,8 @@ import _testcapi
 import pytest
 
 from sphinx.util import inspect
-from sphinx.util.inspect import TypeAliasNamespace, stringify_signature
+from sphinx.util.inspect import (TypeAliasNamespace, object_description,
+                                 stringify_signature)
 
 
 def test_TypeAliasNamespace():
@@ -73,6 +75,53 @@ def test_signature_partial():
 
     sig = inspect.signature(p)
     assert stringify_signature(sig) == '(b, *, c=11, d=2)'
+
+
+def test_signature_enum_defaults():
+    class Color(enum.Enum):
+        RED = 10
+
+    class Level(enum.IntEnum):
+        LOW = 1
+
+    def func(color: Color = Color.RED, level: Level = Level.LOW, text: str = 'x') -> None:
+        return None
+
+    sig = inspect.signature(func)
+
+    enum_module = Color.__module__
+    enum_qual = Color.__qualname__
+    enum_name = Color.__name__
+    int_enum_module = Level.__module__
+    int_enum_qual = Level.__qualname__
+    int_enum_name = Level.__name__
+
+    expected_repr = (
+        f"(color: {enum_module}.{enum_qual} = <{enum_name}.{Color.RED.name}: {Color.RED.value}>, "
+        f"level: {int_enum_module}.{int_enum_qual} = <{int_enum_name}.{Level.LOW.name}: {Level.LOW.value}>, "
+        "text: str = 'x') -> None"
+    )
+    expected_name = (
+        f"(color: {enum_module}.{enum_qual} = {enum_qual}.{Color.RED.name}, "
+        f"level: {int_enum_module}.{int_enum_qual} = {int_enum_qual}.{Level.LOW.name}, "
+        "text: str = 'x') -> None"
+    )
+    expected_qualified = (
+        f"(color: {enum_module}.{enum_qual} = {enum_module}.{enum_qual}.{Color.RED.name}, "
+        f"level: {int_enum_module}.{int_enum_qual} = {int_enum_module}.{int_enum_qual}.{Level.LOW.name}, "
+        "text: str = 'x') -> None"
+    )
+    expected_value = (
+        f"(color: {enum_module}.{enum_qual} = {object_description(Color.RED.value)}, "
+        f"level: {int_enum_module}.{int_enum_qual} = {object_description(Level.LOW.value)}, "
+        "text: str = 'x') -> None"
+    )
+
+    assert stringify_signature(sig) == expected_repr
+    assert stringify_signature(sig, enum_default_rendering='repr') == expected_repr
+    assert stringify_signature(sig, enum_default_rendering='name') == expected_name
+    assert stringify_signature(sig, enum_default_rendering='qualified_name') == expected_qualified
+    assert stringify_signature(sig, enum_default_rendering='value') == expected_value
 
 
 def test_signature_methods():

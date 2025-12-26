@@ -706,11 +706,36 @@ def evaluate_signature(sig: inspect.Signature, globalns: Dict = None, localns: D
     return sig.replace(parameters=parameters, return_annotation=return_annotation)
 
 
+def stringify_default_value(value: Any, enum_default_rendering: Optional[str] = None) -> str:
+    """Stringify a default value for use in signatures."""
+
+    rendering = enum_default_rendering or 'repr'
+
+    if isinstance(value, enum.Enum):
+        enum_type = value.__class__
+        if rendering == 'name':
+            return f"{enum_type.__qualname__}.{value.name}"
+        if rendering == 'qualified_name':
+            return f"{enum_type.__module__}.{enum_type.__qualname__}.{value.name}"
+        if rendering == 'value':
+            try:
+                return object_description(value.value)
+            except Exception:
+                return object_description(value)
+
+    try:
+        return object_description(value)
+    except Exception:
+        return repr(value)
+
+
 def stringify_signature(sig: inspect.Signature, show_annotation: bool = True,
-                        show_return_annotation: bool = True) -> str:
+                        show_return_annotation: bool = True,
+                        enum_default_rendering: Optional[str] = None) -> str:
     """Stringify a Signature object.
 
     :param show_annotation: Show annotation in result
+    :param enum_default_rendering: Rendering style for Enum defaults
     """
     args = []
     last_kind = None
@@ -740,7 +765,7 @@ def stringify_signature(sig: inspect.Signature, show_annotation: bool = True,
                 arg.write(' = ')
             else:
                 arg.write('=')
-            arg.write(object_description(param.default))
+            arg.write(stringify_default_value(param.default, enum_default_rendering))
 
         args.append(arg.getvalue())
         last_kind = param.kind

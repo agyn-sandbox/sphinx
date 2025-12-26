@@ -482,6 +482,9 @@ class Documenter:
         return '.'.join(self.objpath) or self.modname
 
     def _call_format_args(self, **kwargs: Any) -> str:
+        if 'enum_default_rendering' not in kwargs:
+            kwargs['enum_default_rendering'] = self.config.autodoc_enum_default_rendering
+
         if kwargs:
             try:
                 return self.format_args(**kwargs)
@@ -1287,6 +1290,8 @@ class FunctionDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # typ
     def format_args(self, **kwargs: Any) -> str:
         if self.config.autodoc_typehints in ('none', 'description'):
             kwargs.setdefault('show_annotation', False)
+        kwargs.setdefault('enum_default_rendering',
+                          self.config.autodoc_enum_default_rendering)
 
         try:
             self.env.app.emit('autodoc-before-process-signature', self.object, False)
@@ -1315,6 +1320,9 @@ class FunctionDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # typ
             self.add_line('   :async:', sourcename)
 
     def format_signature(self, **kwargs: Any) -> str:
+        kwargs.setdefault('enum_default_rendering',
+                          self.config.autodoc_enum_default_rendering)
+
         sigs = []
         if (self.analyzer and
                 '.'.join(self.objpath) in self.analyzer.overloads and
@@ -1551,6 +1559,8 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type: 
     def format_args(self, **kwargs: Any) -> str:
         if self.config.autodoc_typehints in ('none', 'description'):
             kwargs.setdefault('show_annotation', False)
+        kwargs.setdefault('enum_default_rendering',
+                          self.config.autodoc_enum_default_rendering)
 
         try:
             self._signature_class, self._signature_method_name, sig = self._get_signature()
@@ -1571,6 +1581,9 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type: 
         if self.config.autodoc_class_signature == 'separated':
             # do not show signatures
             return ''
+
+        kwargs.setdefault('enum_default_rendering',
+                          self.config.autodoc_enum_default_rendering)
 
         sig = super().format_signature()
         sigs = []
@@ -2089,6 +2102,8 @@ class MethodDocumenter(DocstringSignatureMixin, ClassLevelDocumenter):  # type: 
     def format_args(self, **kwargs: Any) -> str:
         if self.config.autodoc_typehints in ('none', 'description'):
             kwargs.setdefault('show_annotation', False)
+        kwargs.setdefault('enum_default_rendering',
+                          self.config.autodoc_enum_default_rendering)
 
         try:
             if self.object == object.__init__ and self.parent != object:
@@ -2139,6 +2154,9 @@ class MethodDocumenter(DocstringSignatureMixin, ClassLevelDocumenter):  # type: 
         pass
 
     def format_signature(self, **kwargs: Any) -> str:
+        kwargs.setdefault('enum_default_rendering',
+                          self.config.autodoc_enum_default_rendering)
+
         sigs = []
         if (self.analyzer and
                 '.'.join(self.objpath) in self.analyzer.overloads and
@@ -2735,6 +2753,8 @@ def setup(app: Sphinx) -> Dict[str, Any]:
                          ENUM("signature", "description", "none", "both"))
     app.add_config_value('autodoc_typehints_description_target', 'all', True,
                          ENUM('all', 'documented'))
+    app.add_config_value('autodoc_enum_default_rendering', 'repr', True,
+                         ENUM('repr', 'name', 'qualified_name', 'value'))
     app.add_config_value('autodoc_type_aliases', {}, True)
     app.add_config_value('autodoc_warningiserror', True, True)
     app.add_config_value('autodoc_inherit_docstrings', True, True)

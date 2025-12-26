@@ -21,3 +21,25 @@ class EnumCls(enum.Enum):
     def say_goodbye(cls):
         """a classmethod says good-bye to you."""
         pass
+
+
+class IntEnumCls(enum.IntEnum):
+    """An IntEnum for autodoc enum default tests."""
+
+    level1 = 1
+    level2 = 2
+
+
+def enum_function(color: EnumCls = EnumCls.val1):
+    """Function with an Enum default value."""
+    return color
+
+
+def int_enum_function(level: IntEnumCls = IntEnumCls.level1):
+    """Function with an IntEnum default value."""
+    return level
+
+
+def mixed_defaults(color: EnumCls = EnumCls.val2, label: str = 'enum'):
+    """Function combining Enum and non-Enum defaults."""
+    return color, label

@@ -45,6 +45,10 @@ def do_autodoc(app, objtype, name, options=None):
     return bridge.result
 
 
+def _signature_line(result):
+    return list(result)[1]
+
+
 def make_directive_bridge(env):
     options = Options(
         inherited_members = False,
@@ -2283,6 +2287,17 @@ def test_overload(app):
     ]
 
 
+@pytest.mark.sphinx('html', testroot='ext-autodoc',
+                    confoverrides={'autodoc_enum_default_rendering': 'name'})
+def test_overload_enum_default_rendering(app):
+    actual = do_autodoc(app, 'method', 'target.overload.EnumOverload.choose')
+    signature_line = _signature_line(actual)
+
+    assert signature_line.startswith('.. py:method:: EnumOverload.choose(')
+    assert '= Color.RED' in signature_line
+    assert '<Color.RED:' not in signature_line
+
+
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_overload2(app):
     options = {"members": None}
@@ -2543,3 +2558,55 @@ def test_canonical(app):
         '      docstring',
         '',
     ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc',
+                    confoverrides={'autodoc_enum_default_rendering': 'name'})
+def test_autodoc_enum_default_rendering_name(app):
+    enum_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.enum_function'))
+    int_enum_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.int_enum_function'))
+    mixed_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.mixed_defaults'))
+
+    assert enum_signature.startswith('.. py:function:: enum_function(')
+    assert '= EnumCls.val1' in enum_signature
+    assert int_enum_signature.startswith('.. py:function:: int_enum_function(')
+    assert '= IntEnumCls.level1' in int_enum_signature
+    assert mixed_signature.startswith('.. py:function:: mixed_defaults(')
+    assert '= EnumCls.val2' in mixed_signature
+    assert "label: str = 'enum'" in mixed_signature
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc',
+                    confoverrides={'autodoc_enum_default_rendering': 'qualified_name'})
+def test_autodoc_enum_default_rendering_qualified_name(app):
+    enum_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.enum_function'))
+    int_enum_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.int_enum_function'))
+    mixed_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.mixed_defaults'))
+
+    assert "= target.enums.EnumCls.val1" in enum_signature
+    assert "= target.enums.IntEnumCls.level1" in int_enum_signature
+    assert "= target.enums.EnumCls.val2" in mixed_signature
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc',
+                    confoverrides={'autodoc_enum_default_rendering': 'value'})
+def test_autodoc_enum_default_rendering_value(app):
+    enum_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.enum_function'))
+    int_enum_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.int_enum_function'))
+    mixed_signature = _signature_line(do_autodoc(app, 'function', 'target.enums.mixed_defaults'))
+
+    assert '= 12' in enum_signature
+    assert '= 1' in int_enum_signature
+    assert "label: str = 'enum'" in mixed_signature
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc', confoverrides={
+    'autodoc_enum_default_rendering': 'qualified_name',
+    'autodoc_preserve_defaults': True,
+})
+def test_autodoc_enum_default_rendering_preserve_defaults(app):
+    signature = _signature_line(do_autodoc(app, 'function', 'target.enums.mixed_defaults'))
+
+    assert '= EnumCls.val2' in signature
+    assert 'target.enums.EnumCls.val2' not in signature
+    assert "label: str = 'enum'" in signature

@@ -1,3 +1,4 @@
+import enum
 from typing import Any, overload
 
 
@@ -86,3 +87,17 @@ class Meta(type):
 
 class Baz(metaclass=Meta):
     """docstring"""
+
+
+class Color(enum.Enum):
+    RED = 1
+    BLUE = 2
+
+
+class EnumOverload:
+    @overload
+    def choose(self, color: Color = Color.RED) -> Color:
+        ...
+
+    def choose(self, color: Color = Color.RED) -> Color:
+        return color
