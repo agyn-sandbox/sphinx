@@ -578,6 +578,22 @@ def test_autodoc_typehints_description(app):
             in context)
 
 
+@pytest.mark.sphinx('html', testroot='ext-autodoc-intersphinx',
+                    confoverrides={'autodoc_typehints': 'signature'})
+def test_autodoc_typehints_signature_intersphinx(app):
+    app.build()
+    html = (app.outdir / 'index.html').read_text()
+    assert 'href="https://docs.python.org/3/library/constants.html#None"' in html
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc-intersphinx',
+                    confoverrides={'autodoc_typehints': 'description'})
+def test_autodoc_typehints_description_intersphinx(app):
+    app.build()
+    html = (app.outdir / 'index.html').read_text()
+    assert 'href="https://docs.python.org/3/library/constants.html#None"' in html
+
+
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_autodoc_default_options(app):
     # no settings
