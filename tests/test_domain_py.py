@@ -239,6 +239,7 @@ def test_get_full_qualified_name():
 def test_parse_annotation():
     doctree = _parse_annotation("int")
     assert_node(doctree, ([pending_xref, "int"],))
+    assert doctree[0]['reftype'] == 'class'
 
     doctree = _parse_annotation("List[int]")
     assert_node(doctree, ([pending_xref, "List"],
@@ -265,6 +266,10 @@ def test_parse_annotation():
                           [desc_sig_punctuation, ", "],
                           [pending_xref, "int"],
                           [desc_sig_punctuation, "]"]))
+
+    doctree = _parse_annotation("None")
+    assert_node(doctree, ([pending_xref, "None"],))
+    assert doctree[0]['reftype'] == 'obj'
 
 
 def test_pyfunction_signature(app):
@@ -742,5 +747,4 @@ def test_modindex_common_prefix(app):
                 IndexEntry('sphinx_intl', 0, 'index', 'module-sphinx_intl', '', '', '')])],
         True
     )
-
 
