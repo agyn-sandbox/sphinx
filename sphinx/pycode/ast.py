@@ -166,16 +166,38 @@ class _UnparseVisitor(ast.NodeVisitor):
         return "{" + ", ".join(self.visit(e) for e in node.elts) + "}"
 
     def visit_Subscript(self, node: ast.Subscript) -> str:
-        return "%s[%s]" % (self.visit(node.value), self.visit(node.slice))
+        value = self.visit(node.value)
+
+        slice_node = node.slice
+        # Python < 3.9 compatibility: unwrap Index slices
+        if hasattr(ast, 'Index') and isinstance(slice_node, ast.Index):
+            slice_node = slice_node.value
+
+        if isinstance(slice_node, ast.Tuple):
+            if not slice_node.elts:
+                slice_repr = "()"
+            else:
+                elements = ", ".join(self.visit(e) for e in slice_node.elts)
+                if len(slice_node.elts) == 1:
+                    elements += ","
+                slice_repr = elements
+        else:
+            slice_repr = self.visit(slice_node)
+
+        return "%s[%s]" % (value, slice_repr)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
         return "%s %s" % (self.visit(node.op), self.visit(node.operand))
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
-        if node.elts:
-            return ", ".join(self.visit(e) for e in node.elts)
-        else:
+        if not node.elts:
             return "()"
+
+        elements = ", ".join(self.visit(e) for e in node.elts)
+        if len(node.elts) == 1:
+            elements += ","
+
+        return "(" + elements + ")"
 
     if sys.version_info >= (3, 6):
         def visit_Constant(self, node: ast.Constant) -> str:

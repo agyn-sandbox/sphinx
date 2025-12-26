@@ -53,7 +53,9 @@ from sphinx.pycode import ast
     ("+ a", "+ a"),                             # UAdd
     ("- 1", "- 1"),                             # UnaryOp
     ("- a", "- a"),                             # USub
-    ("(1, 2, 3)", "1, 2, 3"),                   # Tuple
+    ("(1, 2, 3)", "(1, 2, 3)"),                 # Tuple
+    ("(1,)", "(1,)"),                 # Tuple (single)
+    ("((1, 2), (3,))", "((1, 2), (3,))"),       # Tuple (nested)
     ("()", "()"),                               # Tuple (empty)
 ])
 def test_unparse(source, expected):
@@ -71,3 +73,24 @@ def test_unparse_py38():
     expected = "lambda x=0, /, y=1, *args, z, **kwargs: ..."
     module = ast.parse(source)
     assert ast.unparse(module.body[0].value) == expected
+
+def test_unparse_typed_subscript_with_index_slice():
+    try:
+        index_cls = ast.Index
+    except AttributeError:
+        import pytest
+        pytest.skip('ast.Index is not available')
+
+    node = ast.Subscript(
+        value=ast.Name(id='Tuple', ctx=ast.Load()),
+        slice=index_cls(value=ast.Tuple(
+            elts=[
+                ast.Name(id='int', ctx=ast.Load()),
+                ast.Name(id='str', ctx=ast.Load()),
+            ],
+            ctx=ast.Load(),
+        )),
+        ctx=ast.Load(),
+    )
+
+    assert ast.unparse(node) == 'Tuple[int, str]'

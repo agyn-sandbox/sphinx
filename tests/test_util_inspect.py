@@ -309,6 +309,13 @@ def test_signature_from_str_default_values():
     assert sig.parameters['m'].default == 'foo.bar.CONSTANT'
 
 
+def test_signature_from_str_tuple_defaults():
+    sig = inspect.signature_from_str('(a=(1, 2), b=(3,), c=((1, 2), (3,)))')
+    assert sig.parameters['a'].default == '(1, 2)'
+    assert sig.parameters['b'].default == '(3,)'
+    assert sig.parameters['c'].default == '((1, 2), (3,))'
+
+
 def test_signature_from_str_annotations():
     signature = '(a: int, *args: bytes, b: str = "blah", **kwargs: float) -> None'
     sig = inspect.signature_from_str(signature)
