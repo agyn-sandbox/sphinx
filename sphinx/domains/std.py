@@ -704,7 +704,7 @@ class StandardDomain(Domain):
         config = self.env.config
         if config is None:
             return False
-        return bool(config.glossary_terms_case_sensitive)
+        return getattr(config, 'glossary_terms_case_sensitive', False) is True
 
     def _ensure_term_role_mode(self) -> None:
         term_role = self.roles.get('term')
