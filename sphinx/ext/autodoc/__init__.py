@@ -72,12 +72,39 @@ UNINITIALIZED_ATTR = object()
 INSTANCEATTR = object()
 SLOTSATTR = object()
 
+_TRUTHY_MEMBER_STRINGS = {'1', 'true', 'yes', 'on'}
+_FALSY_MEMBER_STRINGS = {'0', 'false', 'no', 'off'}
+
 
 def members_option(arg: Any) -> Union[object, List[str]]:
     """Used to convert the :members: option to auto directives."""
     if arg is None or arg is True:
         return ALL
     return [x.strip() for x in arg.split(',') if x.strip()]
+
+
+def private_members_option(arg: Any) -> Union[object, List[str]]:
+    if arg is None or arg is True:
+        return ALL
+    if arg is False:
+        return []
+    if isinstance(arg, str):
+        stripped = arg.strip()
+        if not stripped:
+            return []
+        lowered = stripped.lower()
+        if lowered in _TRUTHY_MEMBER_STRINGS:
+            return ALL
+        if lowered in _FALSY_MEMBER_STRINGS:
+            return []
+        return [x.strip() for x in stripped.split(',') if x.strip()]
+    if isinstance(arg, (list, tuple, set)):
+        members = []
+        for item in arg:
+            if isinstance(item, str):
+                members.extend([x.strip() for x in item.split(',') if x.strip()])
+        return members
+    return members_option(arg)
 
 
 def members_set_option(arg: Any) -> Union[object, Set[str]]:
@@ -881,7 +908,7 @@ class ModuleDocumenter(Documenter):
         'show-inheritance': bool_option, 'synopsis': identity,
         'platform': identity, 'deprecated': bool_option,
         'member-order': member_order_option, 'exclude-members': members_set_option,
-        'private-members': members_option, 'special-members': members_option,
+        'private-members': private_members_option, 'special-members': members_option,
         'imported-members': bool_option, 'ignore-module-all': bool_option
     }  # type: Dict[str, Callable]
 
@@ -1301,7 +1328,7 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type: 
         'noindex': bool_option, 'inherited-members': inherited_members_option,
         'show-inheritance': bool_option, 'member-order': member_order_option,
         'exclude-members': members_set_option,
-        'private-members': members_option, 'special-members': members_option,
+        'private-members': private_members_option, 'special-members': members_option,
     }  # type: Dict[str, Callable]
 
     _signature_class = None  # type: Any

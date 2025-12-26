@@ -110,6 +110,22 @@ def test_private_members_list_undoc(app):
 
 
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_private_members_string_true(app):
+    options = {"members": None,
+               "private-members": "True"}
+    actual = do_autodoc(app, 'module', 'target.private', options)
+    assert any('.. py:function:: private_function(name)' in line for line in actual)
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_private_members_string_false(app):
+    options = {"members": None,
+               "private-members": "False"}
+    actual = do_autodoc(app, 'module', 'target.private', options)
+    assert not any('.. py:function:: private_function(name)' in line for line in actual)
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_private_members_list_missing_name_warning(app):
     options = {"members": None,
                "private-members": "_selected_function,_missing_member"}
