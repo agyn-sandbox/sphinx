@@ -102,3 +102,22 @@ def test_local_source_files(app, status, warning):
 
     assert result.count('href="_modules/not_a_package/submodule.html#not_a_package.submodule.Class3.class_attr"') == 1
     assert result.count('This is the class attribute class_attr') == 1
+
+
+@pytest.mark.sphinx(buildername='epub', testroot='ext-viewcode', freshenv=True)
+def test_epub_pages_disabled(app, status, warning):
+    app.builder.build_all()
+
+    modules_dir = app.outdir / '_modules'
+    assert not modules_dir.exists()
+
+
+@pytest.mark.sphinx(buildername='epub', testroot='ext-viewcode', freshenv=True,
+                    confoverrides={'viewcode_enable_epub': True})
+def test_epub_pages_enabled(app, status, warning):
+    app.builder.build_all()
+
+    modules_dir = app.outdir / '_modules'
+    assert (modules_dir / 'index.xhtml').isfile()
+    assert (modules_dir / 'spam' / 'mod1.xhtml').isfile()
+    assert (modules_dir / 'spam' / 'mod2.xhtml').isfile()

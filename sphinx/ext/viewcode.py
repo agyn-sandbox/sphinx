@@ -179,6 +179,10 @@ def should_generate_module_page(app: Sphinx, modname: str) -> bool:
 
 
 def collect_pages(app: Sphinx) -> Generator[Tuple[str, Dict[str, Any], str], None, None]:
+    if (app.builder.name.startswith('epub') and
+            not app.builder.env.config.viewcode_enable_epub):
+        return
+
     env = app.builder.env
     if not hasattr(env, '_viewcode_modules'):
         return
