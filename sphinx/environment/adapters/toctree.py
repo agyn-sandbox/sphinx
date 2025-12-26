@@ -113,15 +113,46 @@ class TocTree:
             """Return TOC entries for a toctree node."""
             refs = [(e[0], e[1]) for e in toctreenode['entries']]
             entries: List[Element] = []
+
+            def _leaf(title_text: str, target: str) -> nodes.bullet_list:
+                reference = nodes.reference('', '', nodes.Text(title_text),
+                                            internal=True,
+                                            refuri=target, anchorname='')
+                para = addnodes.compact_paragraph('', '', reference)
+                item = nodes.list_item('', para)
+                return nodes.bullet_list('', item)
+
             for (title, ref) in refs:
                 try:
                     refdoc = None
-                    if url_re.match(ref):
+                    if ref == 'search':
+                        if getattr(builder, 'search', False):
+                            link_title = title or __('Search')
+                            toc = _leaf(link_title, 'search')
+                        else:
+                            continue
+                    elif ref == 'genindex':
+                        if getattr(builder, 'use_index', False):
+                            link_title = title or __('General Index')
+                            toc = _leaf(link_title, 'genindex')
+                        else:
+                            continue
+                    elif ref == 'modindex':
+                        toc = None
+                        for indexname, indexcls, _content, _collapse in (
+                                getattr(builder, 'domain_indices', [])):
+                            if indexcls.name == 'modindex':
+                                link_title = title or indexcls.localname
+                                toc = _leaf(link_title, indexname)
+                                break
+                        if toc is None:
+                            continue
+                    elif url_re.match(ref):
                         if title is None:
                             title = ref
-                        reference = nodes.reference('', '', internal=False,
-                                                    refuri=ref, anchorname='',
-                                                    *[nodes.Text(title)])
+                        reference = nodes.reference('', '', nodes.Text(title),
+                                                    internal=False,
+                                                    refuri=ref, anchorname='')
                         para = addnodes.compact_paragraph('', '', reference)
                         item = nodes.list_item('', para)
                         toc = nodes.bullet_list('', item)
@@ -131,10 +162,10 @@ class TocTree:
                         ref = toctreenode['parent']
                         if not title:
                             title = clean_astext(self.env.titles[ref])
-                        reference = nodes.reference('', '', internal=True,
+                        reference = nodes.reference('', '', nodes.Text(title),
+                                                    internal=True,
                                                     refuri=ref,
-                                                    anchorname='',
-                                                    *[nodes.Text(title)])
+                                                    anchorname='')
                         para = addnodes.compact_paragraph('', '', reference)
                         item = nodes.list_item('', para)
                         # don't show subitems
