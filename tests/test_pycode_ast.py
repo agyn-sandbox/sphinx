@@ -53,7 +53,9 @@ from sphinx.pycode import ast
     ("+ a", "+ a"),                             # UAdd
     ("- 1", "- 1"),                             # UnaryOp
     ("- a", "- a"),                             # USub
-    ("(1, 2, 3)", "(1, 2, 3)"),                   # Tuple
+    ("(1, 2, 3)", "(1, 2, 3)"),                 # Tuple
+    ("(1,)", "(1,)"),                           # Tuple (single element)
+    ("((1,),)", "((1,),)"),                     # Tuple (nested single element)
     ("()", "()"),                               # Tuple (empty)
 ])
 def test_unparse(source, expected):
