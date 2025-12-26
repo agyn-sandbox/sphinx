@@ -222,10 +222,19 @@ def ask_user(d: Dict) -> None:
                       'selected root path.')))
         print(__('sphinx-quickstart will not overwrite existing Sphinx projects.'))
         print()
-        d['path'] = do_prompt(__('Please enter a new root path (or just Enter to exit)'),
-                              '', is_path)
-        if not d['path']:
-            sys.exit(1)
+        while True:
+            new_root = do_prompt(
+                __('Please enter a new root path (or just Enter to exit)'),
+                '', allow_empty)
+            if not new_root:
+                print(bold(__('Found existing conf.py — aborting.')))
+                sys.exit(1)
+            try:
+                d['path'] = is_path(new_root)
+            except ValidationError as err:
+                print(red('* ' + str(err)))
+                continue
+            break
 
     if 'sep' not in d:
         print()

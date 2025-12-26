@@ -223,6 +223,73 @@ def test_quickstart_and_build(tempdir):
     assert not warnings
 
 
+def test_existing_conf_enter_exits(tempdir, capsys):
+    tempdir.joinpath('conf.py').write_text('')
+    answers = {
+        'Root path': tempdir,
+    }
+    qs.term_input = mock_input(answers)
+    d = {}
+
+    with pytest.raises(SystemExit) as excinfo:
+        qs.ask_user(d)
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr().out
+    assert 'Found existing conf.py — aborting.' in captured
+
+
+def test_existing_source_conf_enter_exits(tempdir, capsys):
+    sourcedir = tempdir.joinpath('source')
+    sourcedir.makedirs(exist_ok=True)
+    sourcedir.joinpath('conf.py').write_text('')
+    answers = {
+        'Root path': tempdir,
+    }
+    qs.term_input = mock_input(answers)
+    d = {}
+
+    with pytest.raises(SystemExit) as excinfo:
+        qs.ask_user(d)
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr().out
+    assert 'Found existing conf.py — aborting.' in captured
+
+
+def test_existing_conf_accepts_new_path(tempdir):
+    tempdir.joinpath('conf.py').write_text('')
+    new_root = tempdir.joinpath('fresh')
+    new_root.makedirs(exist_ok=True)
+    answers = {
+        'Root path': tempdir,
+        'Please enter a new root path (or just Enter to exit)': str(new_root),
+        'Project name': 'Relocated Project',
+        'Author name': 'Author',
+        'Project version': '1.0',
+    }
+    qs.term_input = mock_input(answers)
+    d = {}
+    qs.ask_user(d)
+    assert d['path'] == str(new_root)
+
+    qs.generate(d)
+
+    assert (new_root / 'conf.py').isfile()
+    assert (new_root / 'index.rst').isfile()
+    assert sorted(tempdir.listdir()) == ['conf.py', 'fresh']
+
+
+def test_quickstart_quiet_mode_existing_conf(tempdir, capsys):
+    tempdir.joinpath('conf.py').write_text('')
+
+    result = qs.main(['-q', '-p', 'proj', '-a', 'auth', str(tempdir)])
+
+    assert result == 1
+    captured = capsys.readouterr().out
+    assert 'Error: specified path is not a directory' in captured
+
+
 def test_default_filename(tempdir):
     answers = {
         'Root path': tempdir,
