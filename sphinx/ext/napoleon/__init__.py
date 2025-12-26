@@ -8,7 +8,11 @@
     :license: BSD, see LICENSE for details.
 """
 
-from typing import Any, Dict, List
+import importlib
+import inspect
+import sys
+from types import ModuleType
+from typing import Any, Dict, List, Optional, Sequence
 
 from sphinx import __display_version__ as __version__
 from sphinx.application import Sphinx
@@ -378,6 +382,140 @@ def _process_docstring(app: Sphinx, what: str, name: str, obj: Any,
     lines[:] = result_lines[:]
 
 
+def _unwrap_callable(obj: Any) -> Any:
+    try:
+        return inspect.unwrap(obj)  # type: ignore[arg-type]
+    except (AttributeError, TypeError, ValueError):
+        return obj
+
+
+def _load_module(module_name: Optional[str]) -> Optional[ModuleType]:
+    if not module_name:
+        return None
+    module = sys.modules.get(module_name)
+    if module is not None:
+        return module
+    try:
+        return importlib.import_module(module_name)
+    except ModuleNotFoundError:
+        return None
+
+
+def _normalized_qualname_parts(qualname: Optional[str]) -> Sequence[str]:
+    if not qualname:
+        return ()
+    return tuple(part for part in qualname.split('.') if part and part != '<locals>')
+
+
+def _callable_matches(actual: Any, target: Any) -> bool:
+    actual_func = getattr(actual, '__func__', actual)
+    target_func = getattr(target, '__func__', target)
+    return _unwrap_callable(actual_func) is _unwrap_callable(target_func)
+
+
+def _owner_paths(parts: Sequence[str], member_name: str) -> Sequence[Sequence[str]]:
+    paths: List[Sequence[str]] = []
+    if member_name in parts:
+        idx = len(parts) - 1 - parts[::-1].index(member_name)
+        owner = tuple(parts[:idx])
+        if owner:
+            paths.append(owner)
+    if len(parts) > 1:
+        owner = tuple(parts[:-1])
+        if owner and owner not in paths:
+            paths.append(owner)
+    return paths
+
+
+def _resolve_owner_from_module(module: Optional[ModuleType], candidate: Any,
+                               member_name: str) -> Optional[type]:
+    if module is None:
+        return None
+    parts = _normalized_qualname_parts(getattr(candidate, '__qualname__', None))
+    if not parts:
+        return None
+    for owner_path in _owner_paths(parts, member_name):
+        current = module
+        try:
+            for segment in owner_path:
+                current = getattr(current, segment)
+        except AttributeError:
+            continue
+        if inspect.isclass(current):
+            declared = current.__dict__.get(member_name)
+            if declared is not None and _callable_matches(declared, candidate):
+                return current
+    return None
+
+
+def _scan_module_for_owner(module: Optional[ModuleType], candidate: Any,
+                           member_name: str) -> Optional[type]:
+    if module is None:
+        return None
+    for attr in module.__dict__.values():
+        if inspect.isclass(attr):
+            declared = attr.__dict__.get(member_name)
+            if declared is not None and _callable_matches(declared, candidate):
+                return attr
+    return None
+
+
+def _closure_functions(obj: Any) -> Sequence[Any]:
+    closure = getattr(obj, '__closure__', None)
+    if not closure:
+        return ()
+
+    funcs: List[Any] = []
+    for cell in closure:
+        try:
+            value = cell.cell_contents
+        except ValueError:
+            continue
+        if callable(value):
+            funcs.append(value)
+    return tuple(funcs)
+
+
+def _resolve_member_owner(obj: Any, member_name: str) -> Optional[type]:
+    candidates: List[Any] = []
+    seen: List[Any] = []
+
+    def enqueue(candidate: Any) -> None:
+        if candidate in seen:
+            return
+        seen.append(candidate)
+        candidates.append(candidate)
+
+    primary = _unwrap_callable(obj)
+    enqueue(obj)
+    enqueue(primary)
+    for func in _closure_functions(obj):
+        enqueue(func)
+        enqueue(_unwrap_callable(func))
+
+    modules: List[ModuleType] = []
+    for candidate in candidates:
+        module = _load_module(getattr(candidate, '__module__', None))
+        if module and module not in modules:
+            modules.append(module)
+        owner = _resolve_owner_from_module(module, candidate, member_name)
+        if owner is not None:
+            return owner
+
+    owner = getattr(obj, '__objclass__', None)
+    if inspect.isclass(owner) and member_name in owner.__dict__:
+        declared = owner.__dict__.get(member_name)
+        if declared is not None and _callable_matches(declared, obj):
+            return owner
+
+    for module in modules:
+        owner = _scan_module_for_owner(module, obj, member_name)
+        if owner is not None:
+            return owner
+
+    return None
+
+
 def _skip_member(app: Sphinx, what: str, name: str, obj: Any,
                  skip: bool, options: Any) -> bool:
     """Determine if private and special class members are included in docs.
@@ -426,26 +564,7 @@ def _skip_member(app: Sphinx, what: str, name: str, obj: Any,
     if name != '__weakref__' and has_doc and is_member:
         cls_is_owner = False
         if what == 'class' or what == 'exception':
-            qualname = getattr(obj, '__qualname__', '')
-            cls_path, _, _ = qualname.rpartition('.')
-            if cls_path:
-                try:
-                    if '.' in cls_path:
-                        import importlib
-                        import functools
-
-                        mod = importlib.import_module(obj.__module__)
-                        mod_path = cls_path.split('.')
-                        cls = functools.reduce(getattr, mod_path, mod)
-                    else:
-                        cls = obj.__globals__[cls_path]
-                except Exception:
-                    cls_is_owner = False
-                else:
-                    cls_is_owner = (cls and hasattr(cls, name) and  # type: ignore
-                                    name in cls.__dict__)
-            else:
-                cls_is_owner = False
+            cls_is_owner = _resolve_member_owner(obj, name) is not None
 
         if what == 'module' or cls_is_owner:
             is_init = (name == '__init__')
