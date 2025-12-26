@@ -690,6 +690,21 @@ def test_autodoc_typehints_description_for_invalid_node(app):
     restructuredtext.parse(app, text)  # raises no error
 
 
+@pytest.mark.sphinx('text', testroot='ext-autodoc-alias-description')
+def test_autodoc_typehints_description_respects_aliases(app):
+    app.config.autodoc_typehints = 'description'
+    app.config.autodoc_type_aliases = {
+        'AliasName': 'aliaspkg.alias_description.AliasName',
+    }
+
+    app.build()
+    context = (app.outdir / 'index.txt').read_text()
+
+    assert 'Parameters:\n      **value** (*AliasName*) --' in context
+    assert 'Return type:\n      AliasName' in context
+    assert 'aliaspkg.alias_description.AliasTarget' not in context
+
+
 @pytest.mark.skipif(sys.version_info < (3, 7), reason='python 3.7+ is required.')
 @pytest.mark.sphinx('text', testroot='ext-autodoc')
 def test_autodoc_type_aliases(app):
