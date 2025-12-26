@@ -157,3 +157,121 @@ def test_linkcheck_request_headers(app, status, warning):
                 assert headers["X-Secret"] == "open sesami"
             else:
                 assert headers["Accept"] == "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"
+
+
+@pytest.mark.sphinx(
+    'linkcheck', testroot='linkcheck-local', freshenv=True,
+    confoverrides={'linkcheck_check_local': True,
+                   'linkcheck_ignore': [r'ignored\.html']})
+def test_local_links_html(app, status, warning):
+    app.builder.build_all()
+
+    output = (app.outdir / 'output.json').read_text()
+    rows = [json.loads(line) for line in output.splitlines() if line]
+    rowsby = {row['uri']: row for row in rows}
+
+    assert rowsby['working.html']['status'] == 'working'
+    assert rowsby['working.html']['info'] == ''
+    assert rowsby['working/']['status'] == 'broken'
+    assert rowsby['missing.html']['status'] == 'broken'
+    assert rowsby['missing.html']['info'] == 'Local target not found'
+    assert rowsby['page.html#target-anchor']['status'] == 'working'
+    assert rowsby['page.html#missing-anchor']['status'] == 'broken'
+    assert rowsby['page.html#missing-anchor']['info'] == "Anchor 'missing-anchor' not found"
+    assert rowsby['page/#target-anchor']['status'] == 'broken'
+    assert rowsby['page/#target-anchor']['info'] == 'Local target not found'
+    assert rowsby['page/#missing-anchor']['status'] == 'broken'
+    assert rowsby['page/#missing-anchor']['info'] == 'Local target not found'
+    assert rowsby['ignored.html']['status'] == 'ignored'
+    assert rowsby['#home-anchor']['status'] == 'working'
+    assert rowsby['#home-anchor']['info'] == ''
+    assert rowsby['#missing-same-anchor']['status'] == 'broken'
+    assert rowsby['#missing-same-anchor']['info'] == "Anchor 'missing-same-anchor' not found"
+    assert rowsby['dir/section.html']['status'] == 'working'
+    assert rowsby['dir/section.html#dir-anchor']['status'] == 'working'
+    assert rowsby['dir/section/']['status'] == 'broken'
+    assert rowsby['dir/section/']['info'] == 'Local target not found'
+    assert rowsby['dir/section/#dir-anchor']['status'] == 'broken'
+    assert rowsby['dir/section/#dir-anchor']['info'] == 'Local target not found'
+    assert rowsby['dir/section/#missing-dir-anchor']['status'] == 'broken'
+    assert rowsby['dir/section/#missing-dir-anchor']['info'] == 'Local target not found'
+    assert rowsby['dir/missing/']['status'] == 'broken'
+    assert rowsby['dir/missing/']['info'] == 'Local target not found'
+    assert rowsby['/index.html']['status'] == 'ignored'
+    assert rowsby['/index.html']['info'] == "Absolute local path requires 'linkcheck_local_root'"
+    assert rowsby['/missing.html']['status'] == 'ignored'
+    assert rowsby['/missing.html']['info'] == "Absolute local path requires 'linkcheck_local_root'"
+
+    broken_lines = (app.outdir / 'output.txt').read_text()
+    assert 'missing.html' in broken_lines
+    assert 'page.html#missing-anchor' in broken_lines
+
+
+@pytest.mark.sphinx(
+    'linkcheck', testroot='linkcheck-local', freshenv=True,
+    confoverrides={'linkcheck_check_local': True,
+                   'linkcheck_local_builder': 'dirhtml',
+                   'linkcheck_ignore': [r'ignored\.html']})
+def test_local_links_dirhtml(app, status, warning):
+    app.builder.build_all()
+
+    output = (app.outdir / 'output.json').read_text()
+    rows = [json.loads(line) for line in output.splitlines() if line]
+    rowsby = {row['uri']: row for row in rows}
+
+    assert rowsby['working.html']['status'] == 'broken'
+    assert rowsby['working.html']['info'] == 'Local target not found'
+    assert rowsby['working/']['status'] == 'working'
+    assert rowsby['page.html#target-anchor']['status'] == 'broken'
+    assert rowsby['page.html#target-anchor']['info'] == 'Local target not found'
+    assert rowsby['page.html#missing-anchor']['status'] == 'broken'
+    assert rowsby['page.html#missing-anchor']['info'] == 'Local target not found'
+    assert rowsby['page/#target-anchor']['status'] == 'working'
+    assert rowsby['page/#missing-anchor']['status'] == 'broken'
+    assert rowsby['page/#missing-anchor']['info'] == "Anchor 'missing-anchor' not found"
+    assert rowsby['dir/section.html']['status'] == 'broken'
+    assert rowsby['dir/section.html']['info'] == 'Local target not found'
+    assert rowsby['dir/section.html#dir-anchor']['status'] == 'broken'
+    assert rowsby['dir/section.html#dir-anchor']['info'] == 'Local target not found'
+    assert rowsby['dir/section/']['status'] == 'working'
+    assert rowsby['dir/section/#dir-anchor']['status'] == 'working'
+    assert rowsby['dir/section/#missing-dir-anchor']['status'] == 'broken'
+    assert rowsby['dir/section/#missing-dir-anchor']['info'] == "Anchor 'missing-dir-anchor' not found"
+    assert rowsby['dir/missing/']['status'] == 'broken'
+    assert rowsby['dir/missing/']['info'] == 'Local target not found'
+    assert rowsby['/index.html']['status'] == 'ignored'
+    assert rowsby['/missing.html']['status'] == 'ignored'
+
+
+@pytest.mark.sphinx(
+    'linkcheck', testroot='linkcheck-local', freshenv=True,
+    confoverrides={'linkcheck_check_local': True,
+                   'linkcheck_local_root': '',
+                   'linkcheck_ignore': [r'ignored\.html']})
+def test_local_links_with_root(app, status, warning):
+    app.builder.build_all()
+
+    rows = [json.loads(line) for line in (app.outdir / 'output.json').read_text().splitlines() if line]
+    rowsby = {row['uri']: row for row in rows}
+
+    assert rowsby['/index.html']['status'] == 'working'
+    assert rowsby['/index.html']['info'] == ''
+    assert rowsby['/missing.html']['status'] == 'broken'
+    assert rowsby['/missing.html']['info'] == 'Local target not found'
+
+
+@pytest.mark.sphinx(
+    'linkcheck', testroot='linkcheck-local', freshenv=True,
+    confoverrides={'linkcheck_check_local': True,
+                   'linkcheck_ignore': [r'ignored\.html'],
+                   'linkcheck_anchors_ignore': [r'missing-anchor$']})
+def test_local_links_anchor_ignore(app, status, warning):
+    app.builder.build_all()
+
+    rows = [json.loads(line) for line in (app.outdir / 'output.json').read_text().splitlines() if line]
+    rowsby = {row['uri']: row for row in rows}
+
+    assert rowsby['page.html#missing-anchor']['status'] == 'working'
+    assert rowsby['page.html#missing-anchor']['info'] == ''
+    assert rowsby['page/#missing-anchor']['status'] == 'broken'
+    assert rowsby['page/#missing-anchor']['info'] == 'Local target not found'

@@ -13,10 +13,11 @@ import queue
 import re
 import socket
 import threading
+import posixpath
 from html.parser import HTMLParser
 from os import path
-from typing import Any, Dict, List, Set, Tuple
-from urllib.parse import unquote, urlparse
+from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import unquote, urlparse, urlsplit
 
 from docutils import nodes
 from docutils.nodes import Node
@@ -92,6 +93,28 @@ class CheckExternalLinksBuilder(Builder):
         self.good = set()       # type: Set[str]
         self.broken = {}        # type: Dict[str, str]
         self.redirected = {}    # type: Dict[str, Tuple[str, int]]
+        self._check_local_enabled = bool(self.app.config.linkcheck_check_local)
+        builder = (self.app.config.linkcheck_local_builder or 'html').lower()
+        if builder not in ('html', 'dirhtml'):
+            logger.warning(__('Unsupported linkcheck_local_builder %s, falling back to html'),
+                           builder)
+            builder = 'html'
+        self._local_builder = builder
+        suffix = self.app.config.html_file_suffix
+        if suffix is None:
+            suffix = '.html'
+        self._local_suffix = suffix
+        root = self.app.config.linkcheck_local_root
+        if root is None:
+            self._local_root = None  # type: Optional[str]
+        else:
+            self._local_root = root.strip('/')
+        self._output_to_docname = {}   # type: Dict[str, str]
+        self._doc_output_cache = {}    # type: Dict[str, str]
+        self._anchor_cache = {}        # type: Dict[str, Set[str]]
+        self._anchor_cache_lock = threading.Lock()
+        if self._check_local_enabled:
+            self._build_local_target_index()
         # set a timeout for non-responding servers
         socket.setdefaulttimeout(5.0)
         # create output file
@@ -102,7 +125,7 @@ class CheckExternalLinksBuilder(Builder):
         # create queues and worker threads
         self.wqueue = queue.Queue()  # type: queue.Queue
         self.rqueue = queue.Queue()  # type: queue.Queue
-        self.workers = []  # type: List[threading.Thread]
+        self.workers: List[threading.Thread] = []
         for i in range(self.app.config.linkcheck_workers):
             thread = threading.Thread(target=self.check_thread)
             thread.setDaemon(True)
@@ -210,15 +233,50 @@ class CheckExternalLinksBuilder(Builder):
 
         def check() -> Tuple[str, str, int]:
             # check for various conditions without bothering the network
-            if len(uri) == 0 or uri.startswith(('#', 'mailto:', 'ftp:')):
+            if len(uri) == 0:
                 return 'unchecked', '', 0
-            elif not uri.startswith(('http:', 'https:')):
-                return 'local', '', 0
-            elif uri in self.good:
+            if uri.startswith(('mailto:', 'ftp:')):
+                return 'unchecked', '', 0
+
+            if uri.startswith('#'):
+                if not self._check_local_enabled:
+                    return 'unchecked', '', 0
+                if uri in self.good:
+                    return 'working', 'old', 0
+                if uri in self.broken:
+                    return 'broken', self.broken[uri], 0
+                for rex in self.to_ignore:
+                    if rex.match(uri):
+                        return 'ignored', '', 0
+                status, info = self._check_local(docname, uri)
+                if status == 'working':
+                    self.good.add(uri)
+                elif status == 'broken':
+                    self.broken[uri] = info
+                return status, info, 0
+
+            if not uri.startswith(('http:', 'https:')):
+                if not self._check_local_enabled:
+                    return 'local', '', 0
+                if uri in self.good:
+                    return 'working', 'old', 0
+                if uri in self.broken:
+                    return 'broken', self.broken[uri], 0
+                for rex in self.to_ignore:
+                    if rex.match(uri):
+                        return 'ignored', '', 0
+                status, info = self._check_local(docname, uri)
+                if status == 'working':
+                    self.good.add(uri)
+                elif status == 'broken':
+                    self.broken[uri] = info
+                return status, info, 0
+
+            if uri in self.good:
                 return 'working', 'old', 0
-            elif uri in self.broken:
+            if uri in self.broken:
                 return 'broken', self.broken[uri], 0
-            elif uri in self.redirected:
+            if uri in self.redirected:
                 return 'redirected', self.redirected[uri][0], self.redirected[uri][1]
             for rex in self.to_ignore:
                 if rex.match(uri):
@@ -337,6 +395,138 @@ class CheckExternalLinksBuilder(Builder):
         if self.broken:
             self.app.statuscode = 1
 
+    def _build_local_target_index(self) -> None:
+        for docname in self.env.found_docs:
+            output_path = self._target_output(docname)
+            self._output_to_docname[output_path] = docname
+
+    def _target_output(self, docname: str) -> str:
+        cached = self._doc_output_cache.get(docname)
+        if cached is not None:
+            return cached
+
+        if self._local_builder == 'dirhtml':
+            if docname == 'index' or docname.endswith('/index'):
+                result = docname + self._local_suffix
+            else:
+                result = posixpath.join(docname, 'index' + self._local_suffix)
+        else:
+            result = docname + self._local_suffix
+
+        self._doc_output_cache[docname] = result
+        return result
+
+    def _canonical_output_path(self, path_fragment: str, trailing_slash: bool) -> str:
+        if trailing_slash:
+            base = path_fragment.rstrip('/')
+            if base:
+                return posixpath.join(base, 'index' + self._local_suffix)
+            return 'index' + self._local_suffix
+
+        stem, ext = posixpath.splitext(path_fragment)
+        if self._local_builder == 'dirhtml':
+            if ext:
+                return path_fragment
+            if path_fragment.endswith('/index'):
+                return path_fragment + self._local_suffix
+            if path_fragment == 'index':
+                return 'index' + self._local_suffix
+            if path_fragment:
+                return posixpath.join(path_fragment, 'index' + self._local_suffix)
+            return 'index' + self._local_suffix
+
+        if ext:
+            return path_fragment
+        if path_fragment:
+            return path_fragment + self._local_suffix
+        return 'index' + self._local_suffix
+
+    def _resolve_local(self, docname: str, uri: str) -> Optional[Tuple[str, Optional[str]]]:
+        parsed = urlsplit(uri)
+        raw_path = unquote(parsed.path or '')
+        anchor = parsed.fragment
+        if anchor:
+            anchor = unquote(anchor)
+            if not anchor:
+                anchor = None
+            else:
+                for rex in self.anchors_ignore:
+                    if rex.match(anchor):
+                        anchor = None
+                        break
+        else:
+            anchor = None
+
+        current_output = self._target_output(docname)
+        if raw_path == '':
+            return current_output, anchor
+
+        trailing_slash = raw_path.endswith('/')
+        if raw_path.startswith('/'):
+            if self._local_root is None:
+                return None
+            base_dir = self._local_root
+            candidate = raw_path.lstrip('/')
+        else:
+            base_dir = posixpath.dirname(current_output)
+            candidate = raw_path
+
+        if base_dir:
+            combined = posixpath.join(base_dir, candidate)
+        else:
+            combined = candidate
+
+        if combined:
+            normalized = posixpath.normpath(combined)
+        else:
+            normalized = ''
+        if normalized == '.':
+            normalized = ''
+
+        target_path = self._canonical_output_path(normalized, trailing_slash)
+        return target_path, anchor
+
+    def _map_path_to_docname(self, target_path: str) -> Optional[str]:
+        normalized = posixpath.normpath(target_path)
+        if normalized.startswith('../') or normalized == '..':
+            return None
+        return self._output_to_docname.get(normalized)
+
+    def _check_local_anchor(self, docname: str, anchor: str) -> bool:
+        anchors = self._anchor_cache.get(docname)
+        if anchors is None:
+            with self._anchor_cache_lock:
+                anchors = self._anchor_cache.get(docname)
+                if anchors is None:
+                    anchors = self._collect_anchors(docname)
+                    self._anchor_cache[docname] = anchors
+        return anchor in anchors
+
+    def _collect_anchors(self, docname: str) -> Set[str]:
+        anchors: Set[str] = set()
+        doctree = self.env.get_doctree(docname)
+        for node in doctree.traverse(nodes.Element):
+            node_ids = node.get('ids')
+            if node_ids:
+                anchors.update(node_ids)
+        return anchors
+
+    def _check_local(self, docname: str, uri: str) -> Tuple[str, str]:
+        resolved = self._resolve_local(docname, uri)
+        if resolved is None:
+            return 'ignored', __("Absolute local path requires 'linkcheck_local_root'")
+
+        target_path, anchor = resolved
+        target_docname = self._map_path_to_docname(target_path)
+        if target_docname is None:
+            return 'broken', __('Local target not found')
+
+        if anchor and self.app.config.linkcheck_anchors:
+            if not self._check_local_anchor(target_docname, anchor):
+                return 'broken', __("Anchor '%s' not found") % anchor
+
+        return 'working', ''
+
     def write_entry(self, what: str, docname: str, filename: str, line: int,
                     uri: str) -> None:
         with open(path.join(self.outdir, 'output.txt'), 'a') as output:
@@ -365,6 +555,9 @@ def setup(app: Sphinx) -> Dict[str, Any]:
     # Anchors starting with ! are ignored since they are
     # commonly used for dynamic pages
     app.add_config_value('linkcheck_anchors_ignore', ["^!"], None)
+    app.add_config_value('linkcheck_check_local', False, None, [bool])
+    app.add_config_value('linkcheck_local_builder', 'html', None, [str])
+    app.add_config_value('linkcheck_local_root', None, None, [str])
 
     return {
         'version': 'builtin',
