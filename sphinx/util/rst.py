@@ -25,7 +25,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-docinfo_re = re.compile(':\\w+:.*?')
+docinfo_re = re.compile(r':\w+:(?!`)')
 symbols_re = re.compile(r'([!-\-/:-@\[-`{-~])')  # symbols without dot(0x2e)
 SECTIONING_CHARS = ['=', '-', '~']
 
@@ -77,24 +77,36 @@ def default_role(docname: str, name: str) -> Generator[None, None, None]:
 
 def prepend_prolog(content: StringList, prolog: str) -> None:
     """Prepend a string to content body as prolog."""
-    if prolog:
-        pos = 0
-        for line in content:
-            if docinfo_re.match(line):
-                pos += 1
-            else:
-                break
+    if not prolog:
+        return
 
-        if pos > 0:
-            # insert a blank line after docinfo
-            content.insert(pos, '', '<generated>', 0)
+    prolog_lines = prolog.splitlines()
+
+    # trim trailing blank lines so that the prolog is followed by exactly one
+    # generated blank line before the document body.
+    while prolog_lines and not prolog_lines[-1].strip():
+        prolog_lines.pop()
+
+    if not prolog_lines:
+        return
+
+    pos = 0
+    for line in content:
+        if docinfo_re.match(line):
             pos += 1
+        else:
+            break
 
-        # insert prolog (after docinfo if exists)
-        for lineno, line in enumerate(prolog.splitlines()):
-            content.insert(pos + lineno, line, '<rst_prolog>', lineno)
+    if pos > 0:
+        # insert a blank line after docinfo
+        content.insert(pos, '', '<generated>', 0)
+        pos += 1
 
-        content.insert(pos + lineno + 1, '', '<generated>', 0)
+    # insert prolog (after docinfo if exists)
+    for lineno, line in enumerate(prolog_lines):
+        content.insert(pos + lineno, line, '<rst_prolog>', lineno)
+
+    content.insert(pos + len(prolog_lines), '', '<generated>', 0)
 
 
 def append_epilog(content: StringList, epilog: str) -> None:
