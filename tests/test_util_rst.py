@@ -78,6 +78,24 @@ def test_prepend_prolog_without_CR(app):
                                       ('dummy.rst', 1, 'Sphinx is a document generator')]
 
 
+def test_prepend_prolog_trailing_blank_lines(app):
+    prolog = 'this is rst_prolog\n\n'
+    content = StringList(['hello Sphinx world'], 'dummy.rst')
+    prepend_prolog(content, prolog)
+
+    assert list(content.xitems()) == [('<rst_prolog>', 0, 'this is rst_prolog'),
+                                      ('<generated>', 0, ''),
+                                      ('dummy.rst', 0, 'hello Sphinx world')]
+
+
+def test_prepend_prolog_whitespace_only(app):
+    prolog = '   \n\n'
+    content = StringList(['hello Sphinx world'], 'dummy.rst')
+    prepend_prolog(content, prolog)
+
+    assert list(content.xitems()) == [('dummy.rst', 0, 'hello Sphinx world')]
+
+
 def test_textwidth():
     assert textwidth('Hello') == 5
     assert textwidth('русский язык') == 12
