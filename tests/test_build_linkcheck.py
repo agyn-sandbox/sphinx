@@ -14,6 +14,7 @@ import textwrap
 
 import pytest
 import requests
+from requests.exceptions import TooManyRedirects
 
 from .utils import CERT_FILE, http_server, https_server, modify_env
 
@@ -382,3 +383,81 @@ def test_connect_to_selfsigned_nonexistent_cert_file(app):
         "uri": "https://localhost:7777/",
         "info": "Could not find a suitable TLS CA certificate bundle, invalid path: does/not/exist",
     }
+
+
+@pytest.mark.sphinx('linkcheck', testroot='linkcheck-too-many-redirects', freshenv=True)
+def test_fallback_get_on_too_many_redirects_head(app, monkeypatch):
+    target_url = 'https://example.com/too-many-redirects'
+    calls = {'head': 0, 'get': 0}
+
+    def fake_head(url, **kwargs):
+        calls['head'] += 1
+        assert url == target_url
+        raise TooManyRedirects('Exceeded 30 redirects.')
+
+    class DummyResponse:
+        def __init__(self, url):
+            self.url = url
+            self.history = []
+
+        def raise_for_status(self):
+            return None
+
+    def fake_get(url, **kwargs):
+        calls['get'] += 1
+        assert url == target_url
+        return DummyResponse(url)
+
+    monkeypatch.setattr('sphinx.builders.linkcheck.requests.head', fake_head)
+    monkeypatch.setattr('sphinx.builders.linkcheck.requests.get', fake_get)
+
+    app.builder.build_all()
+
+    output_txt = (app.outdir / 'output.txt').read_text()
+    assert output_txt == ''
+
+    rows = [json.loads(line) for line in (app.outdir / 'output.json').read_text().splitlines()]
+    assert rows == [{
+        'code': 0,
+        'status': 'working',
+        'filename': 'index.rst',
+        'lineno': 4,
+        'uri': target_url,
+        'info': ''
+    }]
+    assert calls == {'head': 1, 'get': 1}
+
+
+@pytest.mark.sphinx('linkcheck', testroot='linkcheck-too-many-redirects', freshenv=True)
+def test_get_failure_after_too_many_redirects_head(app, monkeypatch):
+    target_url = 'https://example.com/too-many-redirects'
+    calls = {'head': 0, 'get': 0}
+
+    def fake_head(url, **kwargs):
+        calls['head'] += 1
+        assert url == target_url
+        raise TooManyRedirects('Exceeded 30 redirects.')
+
+    def fake_get(url, **kwargs):
+        calls['get'] += 1
+        assert url == target_url
+        raise TooManyRedirects('Exceeded 30 redirects.')
+
+    monkeypatch.setattr('sphinx.builders.linkcheck.requests.head', fake_head)
+    monkeypatch.setattr('sphinx.builders.linkcheck.requests.get', fake_get)
+
+    app.builder.build_all()
+
+    output_txt = (app.outdir / 'output.txt').read_text()
+    assert 'https://example.com/too-many-redirects: Exceeded 30 redirects.' in output_txt
+
+    rows = [json.loads(line) for line in (app.outdir / 'output.json').read_text().splitlines()]
+    assert rows == [{
+        'code': 0,
+        'status': 'broken',
+        'filename': 'index.rst',
+        'lineno': 4,
+        'uri': target_url,
+        'info': 'Exceeded 30 redirects.'
+    }]
+    assert calls == {'head': 1, 'get': 1}
