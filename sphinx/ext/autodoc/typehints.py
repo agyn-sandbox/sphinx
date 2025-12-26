@@ -28,7 +28,7 @@ def record_typehints(app: Sphinx, objtype: str, name: str, obj: Any,
             for param in sig.parameters.values():
                 if param.annotation is not param.empty:
                     annotation[param.name] = typing.stringify(param.annotation, mode)
-            if sig.return_annotation is not sig.empty:
+            if objtype != 'class' and sig.return_annotation is not sig.empty:
                 annotation['return'] = typing.stringify(sig.return_annotation, mode)
     except (TypeError, ValueError):
         pass
@@ -124,9 +124,10 @@ def modify_field_list(node: nodes.field_list, annotations: Dict[str, str]) -> No
             node += field
 
     if 'return' in annotations and 'return' not in arguments:
+        rtype = annotations['return']
         field = nodes.field()
         field += nodes.field_name('', 'rtype')
-        field += nodes.field_body('', nodes.paragraph('', annotation))
+        field += nodes.field_body('', nodes.paragraph('', rtype))
         node += field
 
 
