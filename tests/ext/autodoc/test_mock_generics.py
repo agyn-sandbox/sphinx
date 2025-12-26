@@ -53,3 +53,14 @@ def test_mock_generic_multiple_typevars_repr() -> None:
     specialized = thing[K, V]
 
     assert repr(specialized) == 'mylib.Thing[K, V]'
+
+
+def test_mock_generic_nested_mock_repr() -> None:
+    module = _make_mock()
+    thing = module.Thing
+
+    inner = thing[T]
+    specialized = thing[inner]
+
+    assert repr(inner) == 'mylib.Thing[T]'
+    assert repr(specialized) == 'mylib.Thing[mylib.Thing[T]]'

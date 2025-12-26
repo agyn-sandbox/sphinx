@@ -93,6 +93,10 @@ def _stringify(value: Any) -> str:
     if isinstance(value, tuple):
         return ', '.join(_stringify(item) for item in value)
 
+    display_name = getattr(value, '__display_name__', None)
+    if display_name:
+        return display_name
+
     value_type = type(value).__name__
     if value_type == 'TypeVar':
         return getattr(value, '__name__', str(value).lstrip('~'))
