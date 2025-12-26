@@ -114,11 +114,17 @@ def _parse_annotation(annotation: str) -> List[Node]:
             result.append(addnodes.desc_sig_punctuation('', ']'))
             return result
         elif isinstance(node, ast.Tuple):
+            if not node.elts:
+                return [
+                    addnodes.desc_sig_punctuation('', '('),
+                    addnodes.desc_sig_punctuation('', ')'),
+                ]
+
             result = []
-            for elem in node.elts:
+            for index, elem in enumerate(node.elts):
+                if index:
+                    result.append(addnodes.desc_sig_punctuation('', ', '))
                 result.extend(unparse(elem))
-                result.append(addnodes.desc_sig_punctuation('', ', '))
-            result.pop()
             return result
         else:
             raise SyntaxError  # unsupported syntax
