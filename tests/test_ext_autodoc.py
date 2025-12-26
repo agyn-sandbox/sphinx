@@ -1084,7 +1084,7 @@ def test_autodoc_cached_property(app):
         '',
         '   .. py:property:: Foo.prop',
         '      :module: target.cached_property',
-        '      :type: int',
+        '      :type: target.cached_property.Point',
         '',
     ]
 
@@ -1401,7 +1401,8 @@ def test_enum_class(app):
     actual = do_autodoc(app, 'class', 'target.enums.EnumCls', options)
     assert list(actual) == [
         '',
-        '.. py:class:: EnumCls(value)',
+        '.. py:class:: EnumCls(value, names=None, *, module=None, qualname=None, type=None, '
+        'start=1, boundary=None)',
         '   :module: target.enums',
         '',
         '   this is enum class',

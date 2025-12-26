@@ -74,11 +74,7 @@ Inventory = Dict[str, Dict[str, Tuple[str, str, str, str]]]
 
 
 def get_type_hints(obj: Any, globalns: Dict = None, localns: Dict = None) -> Dict[str, Any]:
-    """Return a dictionary containing type hints for a function, method, module or class object.
-
-    This is a simple wrapper of `typing.get_type_hints()` that does not raise an error on
-    runtime.
-    """
+    """Return type hints for an object without raising at runtime errors."""
     from sphinx.util.inspect import safe_getattr  # lazy loading
 
     try:
@@ -113,6 +109,8 @@ def restify(cls: Optional[Type]) -> str:
             return ':obj:`None`'
         elif cls is Ellipsis:
             return '...'
+        elif cls is Any:
+            return ':obj:`~typing.Any`'
         elif cls in INVALID_BUILTIN_CLASSES:
             return ':class:`%s`' % INVALID_BUILTIN_CLASSES[cls]
         elif inspect.isNewType(cls):
@@ -168,18 +166,22 @@ def _restify_py37(cls: Optional[Type]) -> str:
             text = restify(cls.__origin__)
 
         origin = getattr(cls, '__origin__', None)
+        type_args = getattr(cls, '__args__', None)
         if not hasattr(cls, '__args__'):
             pass
-        elif all(is_system_TypeVar(a) for a in cls.__args__):
+        elif type_args and all(is_system_TypeVar(a) for a in type_args):
             # Suppress arguments if all system defined TypeVars (ex. Dict[KT, VT])
             pass
         elif cls.__module__ == 'typing' and cls._name == 'Callable':
-            args = ', '.join(restify(a) for a in cls.__args__[:-1])
-            text += r"\ [[%s], %s]" % (args, restify(cls.__args__[-1]))
+            args = ', '.join(restify(a) for a in type_args[:-1])
+            text += r"\ [[%s], %s]" % (args, restify(type_args[-1]))
         elif cls.__module__ == 'typing' and getattr(origin, '_name', None) == 'Literal':
-            text += r"\ [%s]" % ', '.join(repr(a) for a in cls.__args__)
-        elif cls.__args__:
-            text += r"\ [%s]" % ", ".join(restify(a) for a in cls.__args__)
+            text += r"\ [%s]" % ', '.join(repr(a) for a in type_args)
+        elif type_args:
+            text += r"\ [%s]" % ", ".join(restify(a) for a in type_args)
+        elif (cls.__module__ == 'typing' and getattr(cls, '_name', None) == 'Tuple' and
+              repr(cls).endswith('[()]')):
+            text += r"\ [()]"
 
         return text
     elif isinstance(cls, typing._SpecialForm):
@@ -356,41 +358,44 @@ def _stringify_py37(annotation: Any) -> str:
         # only make them appear twice
         return repr(annotation)
 
-    if getattr(annotation, '__args__', None):
+    type_args = getattr(annotation, '__args__', None)
+    if type_args:
         if not isinstance(annotation.__args__, (list, tuple)):
             # broken __args__ found
             pass
         elif qualname in ('Optional', 'Union'):
-            if len(annotation.__args__) > 1 and annotation.__args__[-1] is NoneType:
-                if len(annotation.__args__) > 2:
-                    args = ', '.join(stringify(a) for a in annotation.__args__[:-1])
+            if len(type_args) > 1 and type_args[-1] is NoneType:
+                if len(type_args) > 2:
+                    args = ', '.join(stringify(a) for a in type_args[:-1])
                     return 'Optional[Union[%s]]' % args
                 else:
-                    return 'Optional[%s]' % stringify(annotation.__args__[0])
+                    return 'Optional[%s]' % stringify(type_args[0])
             else:
-                args = ', '.join(stringify(a) for a in annotation.__args__)
+                args = ', '.join(stringify(a) for a in type_args)
                 return 'Union[%s]' % args
         elif qualname == 'types.Union':
-            if len(annotation.__args__) > 1 and None in annotation.__args__:
-                args = ' | '.join(stringify(a) for a in annotation.__args__ if a)
+            if len(type_args) > 1 and None in type_args:
+                args = ' | '.join(stringify(a) for a in type_args if a)
                 return 'Optional[%s]' % args
             else:
-                return ' | '.join(stringify(a) for a in annotation.__args__)
+                return ' | '.join(stringify(a) for a in type_args)
         elif qualname == 'Callable':
-            args = ', '.join(stringify(a) for a in annotation.__args__[:-1])
-            returns = stringify(annotation.__args__[-1])
+            args = ', '.join(stringify(a) for a in type_args[:-1])
+            returns = stringify(type_args[-1])
             return '%s[[%s], %s]' % (qualname, args, returns)
         elif qualname == 'Literal':
-            args = ', '.join(repr(a) for a in annotation.__args__)
+            args = ', '.join(repr(a) for a in type_args)
             return '%s[%s]' % (qualname, args)
         elif str(annotation).startswith('typing.Annotated'):  # for py39+
-            return stringify(annotation.__args__[0])
-        elif all(is_system_TypeVar(a) for a in annotation.__args__):
+            return stringify(type_args[0])
+        elif all(is_system_TypeVar(a) for a in type_args):
             # Suppress arguments if all system defined TypeVars (ex. Dict[KT, VT])
             return qualname
         else:
-            args = ', '.join(stringify(a) for a in annotation.__args__)
+            args = ', '.join(stringify(a) for a in type_args)
             return '%s[%s]' % (qualname, args)
+    elif qualname == 'Tuple' and repr(annotation).endswith('[()]'):
+        return 'Tuple[()]'
 
     return qualname
 

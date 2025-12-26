@@ -19,7 +19,7 @@ from sphinx import addnodes
 from sphinx.addnodes import (desc, desc_addname, desc_annotation, desc_content, desc_name,
                              desc_optional, desc_parameter, desc_parameterlist, desc_returns,
                              desc_sig_name, desc_sig_operator, desc_sig_punctuation,
-                             desc_signature, pending_xref)
+                             desc_signature, pending_xref, pending_xref_condition)
 from sphinx.domains import IndexEntry
 from sphinx.domains.python import (PythonDomain, PythonModuleIndex, _parse_annotation,
                                    _pseudo_parse_arglist, py_sig_re)
@@ -833,18 +833,62 @@ def test_pyproperty(app):
                 entries=[('single', 'prop1 (Class property)', 'Class.prop1', '', None)])
     assert_node(doctree[1][1][1], ([desc_signature, ([desc_annotation, "abstract property "],
                                                      [desc_name, "prop1"],
-                                                     [desc_annotation, ": str"])],
+                                                     [desc_annotation, (": ",
+                                                                        [pending_xref, "str"])])],
                                    [desc_content, ()]))
+    assert_node(doctree[1][1][1][0][2][1], pending_xref, **{"py:class": "Class"})
     assert_node(doctree[1][1][2], addnodes.index,
                 entries=[('single', 'prop2 (Class property)', 'Class.prop2', '', None)])
     assert_node(doctree[1][1][3], ([desc_signature, ([desc_annotation, "class property "],
                                                      [desc_name, "prop2"],
-                                                     [desc_annotation, ": str"])],
+                                                     [desc_annotation, (": ",
+                                                                        [pending_xref, "str"])])],
                                    [desc_content, ()]))
+    assert_node(doctree[1][1][3][0][2][1], pending_xref, **{"py:class": "Class"})
     assert 'Class.prop1' in domain.objects
     assert domain.objects['Class.prop1'] == ('index', 'Class.prop1', 'property', False)
     assert 'Class.prop2' in domain.objects
     assert domain.objects['Class.prop2'] == ('index', 'Class.prop2', 'property', False)
+
+
+def test_pyproperty_type_annotation_crossref(app):
+    text = (".. py:class:: Class\n"
+            "\n"
+            "   .. py:property:: prop\n"
+            "      :type: Point\n")
+    doctree = restructuredtext.parse(app, text)
+    annotation = doctree[1][1][1][0][2]
+    assert_node(annotation, desc_annotation, (": ", [pending_xref, "Point"]))
+    assert_node(annotation[1], pending_xref,
+                refdomain='py', reftype='class', reftarget='Point', **{"py:class": "Class"})
+
+
+def test_pyproperty_type_annotation_none(app):
+    text = (".. py:class:: Class\n"
+            "\n"
+            "   .. py:property:: prop\n"
+            "      :type: None\n")
+    doctree = restructuredtext.parse(app, text)
+    annotation = doctree[1][1][1][0][2]
+    assert_node(annotation[1], pending_xref,
+                refdomain='py', reftype='obj', reftarget='None', **{"py:class": "Class"})
+
+
+def test_pyproperty_type_annotation_python_use_unqualified_type_names(app):
+    app.config.python_use_unqualified_type_names = True
+    text = (".. py:class:: Class\n"
+            "\n"
+            "   .. py:property:: prop\n"
+            "      :type: foo.Point\n")
+    doctree = restructuredtext.parse(app, text)
+    annotation = doctree[1][1][1][0][2]
+    type_xref = annotation[1]
+    assert_node(type_xref, pending_xref,
+                refdomain='py', reftype='class', reftarget='foo.Point', **{"py:class": "Class"})
+    assert_node(type_xref[0], pending_xref_condition, condition='resolved')
+    assert type_xref[0].astext() == 'Point'
+    assert_node(type_xref[1], pending_xref_condition, condition='*')
+    assert type_xref[1].astext() == 'foo.Point'
 
 
 def test_pydecorator_signature(app):

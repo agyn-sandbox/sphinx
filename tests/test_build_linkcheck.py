@@ -16,7 +16,6 @@ import time
 import wsgiref.handlers
 from datetime import datetime
 from queue import Queue
-from typing import Dict
 from unittest import mock
 
 import pytest
@@ -49,7 +48,9 @@ def test_defaults(app):
     assert "Not Found for url: https://www.google.com/image2.png" in content
     # looking for local file should fail
     assert "[broken] path/to/notfound" in content
-    assert len(content.splitlines()) == 6
+    # upstream branch URLs can disappear; ensure we surface the GitHub 404 we expect
+    assert "https://github.com/sphinx-doc/sphinx/blob/4.x/sphinx/__init__.py" in content
+    assert len(content.splitlines()) == 7
 
 
 @pytest.mark.sphinx('linkcheck', testroot='linkcheck', freshenv=True)
@@ -112,6 +113,7 @@ def test_defaults_json(app):
                        'http://www.sphinx-doc.org/en/master/index.html#',
                        'https://www.google.com/image.png',
                        'https://www.google.com/image2.png',
+                       'https://github.com/sphinx-doc/sphinx/blob/4.x/sphinx/__init__.py#L2',
                        'path/to/notfound']
                    })
 def test_anchors_ignored(app):
@@ -517,8 +519,10 @@ def test_too_many_requests_retry_after_HTTP_date(app, capsys):
 
 @pytest.mark.sphinx('linkcheck', testroot='linkcheck-localserver', freshenv=True)
 def test_too_many_requests_retry_after_without_header(app, capsys):
-    with http_server(make_retry_after_handler([(429, None), (200, None)])),\
-         mock.patch("sphinx.builders.linkcheck.DEFAULT_DELAY", 0):
+    with (
+        http_server(make_retry_after_handler([(429, None), (200, None)])),
+        mock.patch("sphinx.builders.linkcheck.DEFAULT_DELAY", 0),
+    ):
         app.build()
     content = (app.outdir / 'output.json').read_text()
     assert json.loads(content) == {

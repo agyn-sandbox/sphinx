@@ -1,3 +1,13 @@
+class Point:
+    pass
+
+
+class Segment:
+    @property
+    def end(self) -> Point:
+        return Point()
+
+
 class Foo:
     """docstring"""
 

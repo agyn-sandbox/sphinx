@@ -1163,7 +1163,7 @@ def test_autodoc_default_options(app):
     assert '      Iterate squares of each value.' in actual
     if not IS_PYPY:
         assert '   .. py:attribute:: CustomIter.__weakref__' in actual
-        assert '      list of weak references to the object (if defined)' in actual
+        assert '      list of weak references to the object' in actual
 
     # :exclude-members: None - has no effect. Unlike :members:,
     # :special-members:, etc. where None == "include all", here None means
@@ -1187,7 +1187,7 @@ def test_autodoc_default_options(app):
     assert '      Iterate squares of each value.' in actual
     if not IS_PYPY:
         assert '   .. py:attribute:: CustomIter.__weakref__' in actual
-        assert '      list of weak references to the object (if defined)' in actual
+        assert '      list of weak references to the object' in actual
     assert '   .. py:method:: CustomIter.snafucate()' in actual
     assert '      Makes this snafucated.' in actual
 

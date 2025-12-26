@@ -437,6 +437,52 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
       a decorator replaces the decorated function with another, it must copy the
       original ``__doc__`` to the new function.
 
+Cross-referencing property type annotations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When :rst:dir:`autoproperty` renders a property signature, autodoc resolves the
+annotation into a Python domain cross-reference.  The following steps reproduce
+the behaviour outside the test suite and demonstrate the generated link:
+
+#. Create ``geometry.py`` next to your documentation root::
+
+       class Point:
+           pass
+
+       class Segment:
+           @property
+           def end(self) -> Point:
+               return Point()
+
+#. Configure a minimal project in ``docs/conf.py``:
+
+   .. code-block:: python
+
+       import os
+       import sys
+
+       extensions = ["sphinx.ext.autodoc"]
+       project = "Autodoc property demo"
+       master_doc = "index"
+
+       sys.path.insert(0, os.path.abspath(".."))
+
+#. Reference the property from ``docs/index.rst``:
+
+   .. code-block:: rst
+
+       Autodoc property demo
+       =====================
+
+       .. autoproperty:: geometry.Segment.end
+
+#. Build the docs::
+
+       sphinx-build -b html docs docs/_build/html
+
+The generated HTML shows ``Segment.end`` with its ``Point`` return annotation
+hyperlinked to the corresponding class definition.
+
 
 Configuration
 -------------
