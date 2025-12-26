@@ -63,6 +63,24 @@ class BuildDoc(Command):
        release = 1.2.0
     """
 
+    def __init__(self, dist) -> None:  # type: ignore[override]
+        self._normalize_config_options(dist)
+        super().__init__(dist)
+
+    @staticmethod
+    def _normalize_config_options(dist) -> None:
+        option_dict = dist.command_options.get('build_sphinx', {})
+        if not option_dict:
+            return
+
+        for legacy, canonical in (
+            ('source-dir', 'source_dir'),
+            ('build-dir', 'build_dir'),
+            ('config-dir', 'config_dir'),
+        ):
+            if legacy in option_dict and canonical not in option_dict:
+                option_dict[canonical] = option_dict.pop(legacy)
+
     description = 'Build Sphinx documentation'
     user_options = [
         ('fresh-env', 'E', 'discard saved environment'),

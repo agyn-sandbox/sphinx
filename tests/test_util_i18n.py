@@ -81,10 +81,10 @@ def test_format_date():
     format = '%x'
     assert i18n.format_date(format, date=datet) == 'Feb 7, 2016'
     format = '%X'
-    assert i18n.format_date(format, date=datet) == '5:11:17 AM'
+    assert i18n.format_date(format, date=datet) == '5:11:17\u202fAM'
     assert i18n.format_date(format, date=date) == 'Feb 7, 2016'
     format = '%c'
-    assert i18n.format_date(format, date=datet) == 'Feb 7, 2016, 5:11:17 AM'
+    assert i18n.format_date(format, date=datet) == 'Feb 7, 2016, 5:11:17\u202fAM'
     assert i18n.format_date(format, date=date) == 'Feb 7, 2016'
 
     # timezone
