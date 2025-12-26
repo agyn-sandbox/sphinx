@@ -155,3 +155,35 @@ def test_autodata_hide_value(app):
         '   :meta hide-value:',
         '',
     ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc-typealias')
+def test_autodata_type_alias_docstring(monkeypatch, app):
+    from sphinx.pycode import parser
+
+    class _FakeStr(parser.ast.AST):
+        _fields = ()
+
+    monkeypatch.setattr(parser.ast, 'Str', _FakeStr, raising=False)
+
+    actual = do_autodoc(app, 'data', 'type_alias_docstrings.ScaffoldOpts')
+    assert list(actual) == [
+        '',
+        '.. py:data:: ScaffoldOpts',
+        '   :module: type_alias_docstrings',
+        '',
+        '   Dictionary with PyScaffold\'s options, see '
+        '``pyscaffold.api.create_project``.',
+        '   Should be treated as immutable (copy before mutating).',
+        '',
+        '   Please notice some behaviours given by the options **SHOULD** be '
+        'observed. For',
+        '   example, files should be overwritten when the **force** option is '
+        '``True``.',
+        '   Similarly when **pretend** is ``True``, no operation should be really',
+        '   performed, but any action should be logged as if realized.',
+        '',
+        '   alias of :class:`~typing.Dict`\\ [:class:`str`, '
+        ':class:`~typing.Any`]',
+        '',
+    ]
