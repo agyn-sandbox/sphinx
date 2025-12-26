@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from types import MethodType
 from typing import TYPE_CHECKING, Any, cast
 
 from docutils import nodes
@@ -376,7 +377,38 @@ class Include(BaseInclude, SphinxDirective):
         rel_filename, filename = self.env.relfn2path(self.arguments[0])
         self.arguments[0] = filename
         self.env.note_included(filename)
-        return super().run()
+        listeners = self.env.events.listeners.get('source-read')
+        if not listeners:
+            return super().run()
+
+        original_method = self.state_machine.insert_input
+        original_unbound = type(self.state_machine).insert_input
+        original_insert_input = MethodType(original_unbound, self.state_machine)
+
+        def _insert_input(include_lines: list[str], path: str) -> None:
+            if getattr(self.state_machine, '_sphinx_sr_guard', 0) != 0:
+                original_insert_input(include_lines, path)
+                return
+
+            setattr(self.state_machine, '_sphinx_sr_guard', 1)
+            try:
+                text = "\n".join(include_lines)
+                include_docname = self.env.path2doc(path)
+                if include_docname is not None:
+                    arg = [text]
+                    self.env.events.emit('source-read', include_docname, arg)
+                    text = arg[0]
+                    include_lines = text.splitlines()
+
+                original_insert_input(include_lines, path)
+            finally:
+                setattr(self.state_machine, '_sphinx_sr_guard', 0)
+
+        self.state_machine.insert_input = _insert_input
+        try:
+            return super().run()
+        finally:
+            self.state_machine.insert_input = original_method
 
 
 def setup(app: Sphinx) -> dict[str, Any]:
