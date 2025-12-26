@@ -1,9 +1,7 @@
 """Fixtures for type alias docstring handling tests."""
 
-from __future__ import annotations
-
 from pathlib import Path
-from typing import Any, Callable, Dict, TypeAlias
+from typing import Any, Callable, Dict, Optional
 
 
 ScaffoldOpts = Dict[str, Any]
@@ -17,16 +15,16 @@ performed, but any action should be logged as if realized.
 """
 
 
-FileContents: TypeAlias = str | None
+FileContents = Optional[str]
 """When the file content is ``None``, the file should not be written to disk.
 Empty files are represented by an empty string ``""`` as content.
 """
 
 
-FileOp: TypeAlias = Callable[[Path, FileContents, ScaffoldOpts], Path | None]
+FileOp = Callable[[Path, FileContents, ScaffoldOpts], Optional[Path]]
 """Signature of functions considered file operations::
 
-    Callable[[Path, FileContents, ScaffoldOpts], Path | None]
+    Callable[[Path, FileContents, ScaffoldOpts], Optional[Path]]
 
 - **path** (:class:`pathlib.Path`): file path potentially written to disk.
 - **contents** (:obj:`FileContents`): usual text content. :obj:`None` skips
