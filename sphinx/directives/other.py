@@ -85,6 +85,8 @@ class TocTree(SphinxDirective):
 
         ret: List[Node] = []
         excluded = Matcher(self.config.exclude_patterns)
+        special_entries = {'genindex', 'modindex', 'search'}
+
         for entry in self.content:
             if not entry:
                 continue
@@ -109,6 +111,9 @@ class TocTree(SphinxDirective):
                 else:
                     ref = docname = entry
                     title = None
+                if ref in special_entries:
+                    toctree['entries'].append((title, ref))
+                    continue
                 # remove suffixes (backwards compatibility)
                 for suffix in suffixes:
                     if docname.endswith(suffix):

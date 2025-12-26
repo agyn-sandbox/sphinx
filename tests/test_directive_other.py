@@ -148,3 +148,43 @@ def test_toctree_twice(app):
     assert_node(doctree[0][0],
                 entries=[(None, 'foo'), (None, 'foo')],
                 includefiles=['foo', 'foo'])
+
+
+@pytest.mark.sphinx(testroot='toctree-glob')
+def test_toctree_special_entries(app):
+    text = (".. toctree::\n"
+            "\n"
+            "   genindex\n"
+            "   modindex\n"
+            "   search\n")
+
+    app.env.find_files(app.config, app.builder)
+    existing = app._warning.getvalue()
+    doctree = restructuredtext.parse(app, text, 'index')
+    assert_node(doctree, [nodes.document, nodes.compound, addnodes.toctree])
+    assert_node(doctree[0][0],
+                entries=[(None, 'genindex'),
+                         (None, 'modindex'),
+                         (None, 'search')],
+                includefiles=[])
+    assert app._warning.getvalue() == existing
+
+
+@pytest.mark.sphinx(testroot='toctree-glob')
+def test_toctree_special_entries_with_titles(app):
+    text = (".. toctree::\n"
+            "\n"
+            "   General <genindex>\n"
+            "   Modules <modindex>\n"
+            "   Lookup <search>\n")
+
+    app.env.find_files(app.config, app.builder)
+    existing = app._warning.getvalue()
+    doctree = restructuredtext.parse(app, text, 'index')
+    assert_node(doctree, [nodes.document, nodes.compound, addnodes.toctree])
+    assert_node(doctree[0][0],
+                entries=[('General', 'genindex'),
+                         ('Modules', 'modindex'),
+                         ('Lookup', 'search')],
+                includefiles=[])
+    assert app._warning.getvalue() == existing

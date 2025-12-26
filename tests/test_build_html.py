@@ -131,6 +131,48 @@ def test_html4_output(app, status, warning):
     app.build()
 
 
+@pytest.mark.sphinx('html', testroot='toctree-special')
+def test_html_toctree_special_entries(app, cached_etree_parse, warning):
+    app.build()
+    assert warning.getvalue() == ''
+
+    index_tree = cached_etree_parse(app.outdir / 'index.html')
+    check_xpath(index_tree, 'index.html',
+                ".//li[@class='toctree-l1']/a[@href='genindex.html']",
+                'General Index')
+    check_xpath(index_tree, 'index.html',
+                ".//li[@class='toctree-l1']/a[@href='py-modindex.html']",
+                'Python Module Index')
+    check_xpath(index_tree, 'index.html',
+                ".//li[@class='toctree-l1']/a[@href='search.html']",
+                'Search')
+
+    assert (app.outdir / 'genindex.html').exists()
+    assert (app.outdir / 'py-modindex.html').exists()
+    assert (app.outdir / 'search.html').exists()
+
+
+@pytest.mark.sphinx('html', testroot='toctree-special-nomod')
+def test_html_toctree_special_entries_without_modindex(app, cached_etree_parse, warning):
+    app.build()
+    assert warning.getvalue() == ''
+
+    index_tree = cached_etree_parse(app.outdir / 'index.html')
+    check_xpath(index_tree, 'index.html',
+                ".//li[@class='toctree-l1']/a[@href='genindex.html']",
+                'General Index')
+    check_xpath(index_tree, 'index.html',
+                ".//li[@class='toctree-l1']/a[@href='search.html']",
+                'Search')
+    check_xpath(index_tree, 'index.html',
+                ".//li[@class='toctree-l1']/a[@href='py-modindex.html']",
+                None)
+
+    assert (app.outdir / 'genindex.html').exists()
+    assert (app.outdir / 'search.html').exists()
+    assert not (app.outdir / 'py-modindex.html').exists()
+
+
 @pytest.mark.parametrize("fname,expect", flat_dict({
     'images.html': [
         (".//img[@src='_images/img.png']", ''),

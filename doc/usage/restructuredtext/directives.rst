@@ -152,6 +152,17 @@ tables of contents.  The ``toctree`` directive is the central element.
    toctree directive.  This is useful if you want to generate a "sitemap" from
    the toctree.
 
+   The additional special entry names ``genindex``, ``modindex`` and ``search``
+   insert links to the general index, the first available domain module index
+   and the search page, respectively.  These entries are only included when the
+   current builder produces the corresponding page (for example ``genindex``
+   requires :confval:`html_use_index` and ``search`` requires search support).
+   The ``modindex`` entry resolves to the first domain index whose
+   ``name`` attribute is ``"modindex"``; if no such index is available, the
+   entry is silently ignored.  When no explicit title is supplied the entries
+   use the default captions "General Index", the domain index's
+   ``localname`` and "Search".
+
    You can use the ``reversed`` flag option to reverse the order of the entries
    in the list. This can be useful when using the ``glob`` flag option to
    reverse the ordering of the files.  Example::
