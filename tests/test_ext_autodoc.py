@@ -2287,6 +2287,17 @@ def test_overload(app):
     ]
 
 
+@pytest.mark.sphinx('html', testroot='ext-autodoc',
+                    confoverrides={'autodoc_enum_default_rendering': 'name'})
+def test_overload_enum_default_rendering(app):
+    actual = do_autodoc(app, 'method', 'target.overload.EnumOverload.choose')
+    signature_line = _signature_line(actual)
+
+    assert signature_line.startswith('.. py:method:: EnumOverload.choose(')
+    assert '= Color.RED' in signature_line
+    assert '<Color.RED:' not in signature_line
+
+
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_overload2(app):
     options = {"members": None}

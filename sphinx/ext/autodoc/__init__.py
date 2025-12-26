@@ -2154,6 +2154,9 @@ class MethodDocumenter(DocstringSignatureMixin, ClassLevelDocumenter):  # type: 
         pass
 
     def format_signature(self, **kwargs: Any) -> str:
+        kwargs.setdefault('enum_default_rendering',
+                          self.config.autodoc_enum_default_rendering)
+
         sigs = []
         if (self.analyzer and
                 '.'.join(self.objpath) in self.analyzer.overloads and
