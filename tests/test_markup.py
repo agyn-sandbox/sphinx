@@ -241,6 +241,27 @@ def get_verifier(verify, verify_re):
         '\\sphinxkeyboard{\\sphinxupquote{space}}',
     ),
     (
+        # kbd role literal hyphen
+        'verify',
+        ':kbd:`-`',
+        '<p><kbd class="kbd docutils literal notranslate">-</kbd></p>',
+        None,
+    ),
+    (
+        # kbd role literal plus
+        'verify',
+        ':kbd:`+`',
+        '<p><kbd class="kbd docutils literal notranslate">+</kbd></p>',
+        None,
+    ),
+    (
+        # kbd role literal caret
+        'verify',
+        ':kbd:`^`',
+        '<p><kbd class="kbd docutils literal notranslate">^</kbd></p>',
+        None,
+    ),
+    (
         # kbd role
         'verify',
         ':kbd:`Control+X`',
@@ -265,6 +286,59 @@ def get_verifier(verify, verify_re):
          '<kbd class="kbd docutils literal notranslate">s</kbd>'
          '</kbd></p>'),
         '\\sphinxkeyboard{\\sphinxupquote{M\\sphinxhyphen{}x  M\\sphinxhyphen{}s}}',
+    ),
+    (
+        # kbd role compound with literal separator key
+        'verify',
+        ':kbd:`Shift-+`',
+        ('<p><kbd class="kbd docutils literal notranslate">'
+         '<kbd class="kbd docutils literal notranslate">Shift</kbd>'
+         '-'
+         '<kbd class="kbd docutils literal notranslate">+</kbd>'
+         '</kbd></p>'),
+        None,
+    ),
+    (
+        # kbd role boundary hyphen prefix
+        'verify',
+        ':kbd:`-X`',
+        '<p><kbd class="kbd docutils literal notranslate">-X</kbd></p>',
+        None,
+    ),
+    (
+        # kbd role boundary hyphen suffix
+        'verify',
+        ':kbd:`X-`',
+        '<p><kbd class="kbd docutils literal notranslate">X-</kbd></p>',
+        None,
+    ),
+    (
+        # kbd role escaped hyphen separator
+        'verify',
+        ':kbd:`C\\-x`',
+        '<p><kbd class="kbd docutils literal notranslate">C-x</kbd></p>',
+        None,
+    ),
+    (
+        # kbd role escaped plus separator
+        'verify',
+        ':kbd:`A\\+B`',
+        '<p><kbd class="kbd docutils literal notranslate">A+B</kbd></p>',
+        None,
+    ),
+    (
+        # kbd role escaped caret separator
+        'verify',
+        ':kbd:`^\\^`',
+        '<p><kbd class="kbd docutils literal notranslate">^^</kbd></p>',
+        None,
+    ),
+    (
+        # kbd role escaped separator after other escapes
+        'verify',
+        ':kbd:`\\|\\-\\|`',
+        '<p><kbd class="kbd docutils literal notranslate">|-|</kbd></p>',
+        None,
     ),
     (
         # non-interpolation of dashes in option role
