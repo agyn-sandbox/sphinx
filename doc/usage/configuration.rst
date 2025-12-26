@@ -598,6 +598,24 @@ General configuration
       If the value is a fully-qualified name of a custom Pygments style class,
       this is then used as custom style.
 
+.. confval:: python_docstring_variable_xrefs
+
+   A boolean that decides whether variable names documented with the Python
+   domain docstring fields ``:var:``, ``:ivar:`` and ``:cvar:`` are turned into
+   cross-references.  The default is ``True`` which preserves the historical
+   behaviour of linking these names to the closest matching Python object.  If
+   you prefer them to render as plain literal text, set the value to
+   ``False``::
+
+      python_docstring_variable_xrefs = False
+
+   Turning this off still allows the corresponding ``:vartype:`` entries to use
+   the ``class`` role so that type information remains linked.  Explicit roles
+   (for example ``:py:attr:``) inside docstrings continue to work regardless of
+   the setting.
+
+   .. versionadded:: 4.0
+
 .. confval:: add_function_parentheses
 
    A boolean that decides whether parentheses are appended to function and
