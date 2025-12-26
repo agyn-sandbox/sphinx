@@ -28,6 +28,7 @@ from sphinx.deprecation import RemovedInSphinx50Warning
 from sphinx.pycode.ast import ast  # for py36-37
 from sphinx.pycode.ast import unparse as ast_unparse
 from sphinx.util import logging
+from sphinx.util import typing as sphinx_typing
 from sphinx.util.typing import ForwardRef
 from sphinx.util.typing import stringify as stringify_annotation
 
@@ -37,6 +38,19 @@ else:
     ClassMethodDescriptorType = type(object.__init__)
     MethodDescriptorType = type(str.join)
     WrapperDescriptorType = type(dict.__dict__['fromkeys'])
+
+NoneType = type(None)
+UnionType = getattr(types, 'UnionType', None)
+
+if hasattr(typing, 'get_origin'):
+    get_origin = typing.get_origin  # type: ignore[attr-defined]
+    get_args = typing.get_args  # type: ignore[attr-defined]
+else:
+    def get_origin(tp: Any) -> Any:
+        return getattr(tp, '__origin__', None)
+
+    def get_args(tp: Any) -> Tuple:
+        return getattr(tp, '__args__', ())
 
 if False:
     # For type annotation
@@ -515,6 +529,48 @@ class DefaultValue:
         return self.value
 
 
+def _default_allows_none(default: Any) -> bool:
+    if isinstance(default, DefaultValue):
+        return default == 'None'
+    return default is None
+
+
+def _is_optional_annotation(annotation: Any) -> bool:
+    if annotation is None or annotation is NoneType:
+        return True
+    if annotation is Parameter.empty:
+        return False
+    if isinstance(annotation, str):
+        stripped = annotation.replace(' ', '')
+        if stripped.startswith('Optional[') or \
+                stripped.endswith('|None') or \
+                stripped == 'None':
+            return True
+        if stripped.startswith('Union[') and 'None' in stripped:
+            return True
+        return False
+
+    origin = get_origin(annotation)
+    if origin is typing.Union or (UnionType is not None and origin is UnionType):
+        return any(arg is NoneType for arg in get_args(annotation))
+
+    args = getattr(annotation, '__args__', ())
+    if isinstance(args, (list, tuple)):
+        return any(arg is NoneType for arg in args)
+    return False
+
+
+def _wrap_optional_annotation(annotation: Any) -> Any:
+    if isinstance(annotation, str):
+        return annotation
+
+    try:
+        return typing.Optional[annotation]  # type: ignore[index]
+    except Exception:
+        rendered = sphinx_typing.stringify(annotation)
+        return f'Optional[{rendered}]'
+
+
 class TypeAliasForwardRef:
     """Pseudo typing class for autodoc_type_aliases.
 
@@ -661,6 +717,17 @@ def signature(subject: Callable, bound_method: bool = False, follow_wrapped: boo
         else:
             if len(parameters) > 0:
                 parameters.pop(0)
+
+    for i, param in enumerate(parameters):
+        if param.annotation is Parameter.empty:
+            continue
+        if not _default_allows_none(param.default):
+            continue
+        if _is_optional_annotation(param.annotation):
+            continue
+
+        new_annotation = _wrap_optional_annotation(param.annotation)
+        parameters[i] = param.replace(annotation=new_annotation)
 
     # To allow to create signature object correctly for pure python functions,
     # pass an internal parameter __validate_parameters__=False to Signature
