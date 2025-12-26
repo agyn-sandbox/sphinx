@@ -8,6 +8,7 @@
     :license: BSD, see LICENSE for details.
 """
 
+import os
 import time
 from io import StringIO
 
@@ -277,7 +278,7 @@ def test_existing_conf_accepts_new_path(tempdir):
 
     assert (new_root / 'conf.py').isfile()
     assert (new_root / 'index.rst').isfile()
-    assert sorted(tempdir.listdir()) == ['conf.py', 'fresh']
+    assert sorted(os.path.basename(entry) for entry in tempdir.listdir()) == ['conf.py', 'fresh']
 
 
 def test_quickstart_quiet_mode_existing_conf(tempdir, capsys):
