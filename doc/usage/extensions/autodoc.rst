@@ -192,6 +192,12 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
 
      .. versionadded:: 3.5
 
+   * Variable docstring fields ``:var:``, ``:ivar:`` and ``:cvar:`` link to the
+     nearest matching Python object by default.  Set
+     :confval:`python_docstring_variable_xrefs` to ``False`` if you would prefer
+     these names to render as literal text while still allowing ``:vartype:``
+     entries and explicit roles such as ``:py:attr:`` to resolve normally.
+
    * Python "special" members (that is, those named like ``__special__``) will
      be included if the ``special-members`` flag option is given::
 

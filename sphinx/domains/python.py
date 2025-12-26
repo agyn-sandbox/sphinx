@@ -369,6 +369,17 @@ class PyObject(ObjectDescription):
 
     allow_nesting = False
 
+    def get_field_type_map(self) -> Dict[str, Tuple[Field, bool]]:
+        for field in self.doc_field_types:
+            if isinstance(field, TypedField) and field.name == 'variable':
+                if self.config.python_docstring_variable_xrefs:
+                    field.rolename = 'obj'
+                else:
+                    field.rolename = None
+                break
+
+        return super().get_field_type_map()
+
     def get_signature_prefix(self, sig: str) -> str:
         """May return a prefix to put before the object name in the
         signature.
@@ -1287,6 +1298,7 @@ def builtin_resolver(app: Sphinx, env: BuildEnvironment,
 def setup(app: Sphinx) -> Dict[str, Any]:
     app.setup_extension('sphinx.directives')
 
+    app.add_config_value('python_docstring_variable_xrefs', True, 'env')
     app.add_domain(PythonDomain)
     app.connect('object-description-transform', filter_meta_fields)
     app.connect('missing-reference', builtin_resolver, priority=900)
