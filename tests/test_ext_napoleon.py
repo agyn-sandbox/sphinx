@@ -13,8 +13,12 @@ import sys
 from collections import namedtuple
 from unittest import TestCase, mock
 
+import pytest
+
 from sphinx.application import Sphinx
 from sphinx.ext.napoleon import _process_docstring, _skip_member, Config, setup
+
+import napoleon_test_decorators as decorator_utils
 
 
 def _private_doc():
@@ -68,6 +72,34 @@ class SampleError(Exception):
 
 
 SampleNamedTuple = namedtuple('SampleNamedTuple', 'user_id block_type def_id')
+
+
+class PlainInitClass:
+    def __init__(self):
+        """PlainInitClass.__init__.DOCSTRING"""
+        pass
+
+
+class DecoratedInitWithWraps:
+    @decorator_utils.wraps_init
+    def __init__(self):
+        """DecoratedInitWithWraps.__init__.DOCSTRING"""
+        pass
+
+
+class DecoratedInitWithoutWraps:
+    @decorator_utils.bare_init
+    def __init__(self):
+        """DecoratedInitWithoutWraps.__init__.DOCSTRING"""
+        pass
+
+
+@decorator_utils.decorate_class
+class DecoratedClassWithDecoratedInit:
+    @decorator_utils.wraps_init
+    def __init__(self):
+        """DecoratedClassWithDecoratedInit.__init__.DOCSTRING"""
+        pass
 
 
 class ProcessDocstringTest(TestCase):
@@ -126,15 +158,14 @@ class SkipMemberTest(TestCase):
         app = mock.Mock()
         app.config = Config()
         setattr(app.config, config_name, True)
+        result = _skip_member(app, what, member, obj, skip, mock.Mock())
         if expect_default_skip:
-            self.assertEqual(None, _skip_member(app, what, member, obj, skip,
-                                                mock.Mock()))
+            self.assertIsNone(result)
         else:
-            self.assertFalse(_skip_member(app, what, member, obj, skip,
-                                          mock.Mock()))
+            self.assertIs(result, False)
         setattr(app.config, config_name, False)
-        self.assertEqual(None, _skip_member(app, what, member, obj, skip,
-                                            mock.Mock()))
+        self.assertIsNone(_skip_member(app, what, member, obj, skip,
+                                       mock.Mock()))
 
     def test_namedtuple(self):
         if sys.version_info < (3, 7):
@@ -169,6 +200,26 @@ class SkipMemberTest(TestCase):
         self.assertSkip('class', '__special_undoc__',
                         SampleClass.__special_undoc__, True,
                         'napoleon_include_special_with_doc')
+
+    def test_class_plain_init_doc(self):
+        self.assertSkip('class', '__init__',
+                        PlainInitClass.__init__, False,
+                        'napoleon_include_init_with_doc')
+
+    def test_class_decorated_init_with_wraps(self):
+        self.assertSkip('class', '__init__',
+                        DecoratedInitWithWraps.__init__, False,
+                        'napoleon_include_init_with_doc')
+
+    def test_class_decorated_init_without_wraps(self):
+        self.assertSkip('class', '__init__',
+                        DecoratedInitWithoutWraps.__init__, False,
+                        'napoleon_include_init_with_doc')
+
+    def test_class_decorated_class_with_decorated_init(self):
+        self.assertSkip('class', '__init__',
+                        DecoratedClassWithDecoratedInit.__init__, False,
+                        'napoleon_include_init_with_doc')
 
     def test_exception_private_doc(self):
         self.assertSkip('exception', '_private_doc',
@@ -205,3 +256,19 @@ class SkipMemberTest(TestCase):
     def test_module_special_undoc(self):
         self.assertSkip('module', '__special_undoc__', __special_undoc__, True,
                         'napoleon_include_special_with_doc')
+
+
+@pytest.mark.sphinx('html', testroot='ext-napoleon-decorators', freshenv=True)
+def test_integration_decorated_inits(app, status, warning):
+    app.builder.build_all()
+
+    objects = app.env.domains['py'].data['objects']
+    names = set(objects)
+    expected = {
+        'target.PlainInit.__init__',
+        'target.WrapsDecoratedInit.__init__',
+        'target.BareDecoratedInit.__init__',
+        'target.DecoratedClassWithInit.__init__',
+    }
+    missing = expected - names
+    assert not missing, 'Missing autodoc entries: %s' % sorted(missing)

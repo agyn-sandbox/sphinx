@@ -30,6 +30,7 @@ doc/_build/
 doc/locale/
 tests/.coverage
 tests/build/
+tests/roots/*/_build/
 utils/regression_test.js
 
 node_modules/
