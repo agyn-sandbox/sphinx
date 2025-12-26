@@ -1,0 +1,15 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: test-locale-override\n"
+"Language: da\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: tests/roots/test-locale-override
+msgid "Fig. %s"
+msgstr "LOKAL FIGUR %s"
+
+#: tests/roots/test-locale-override
+msgid "Listing %s"
+msgstr "LOKAL LISTE %s"

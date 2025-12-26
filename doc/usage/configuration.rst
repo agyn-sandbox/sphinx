@@ -744,6 +744,16 @@ documentation on :ref:`intl` for details.
    :file:`./locale/{language}/LC_MESSAGES/sphinx.mo`.  The text domain of
    individual documents depends on :confval:`gettext_compact`.
 
+   For the ``sphinx`` domain, Sphinx loads catalogs from project directories in
+   the order listed here before falling back to the bundled
+   :file:`sphinx/locale` catalog and finally the system locale directory.  This
+   means earlier entries in :confval:`locale_dirs` override later ones and the
+   packaged translations.
+
+   When :confval:`gettext_auto_build` is enabled (the default), catalogs listed
+   here are compiled before loading so that project-local overrides take
+   effect without running :program:`msgfmt` manually.
+
    The default is ``['locales']``.
 
    .. versionchanged:: 1.5
@@ -794,6 +804,10 @@ documentation on :ref:`intl` for details.
 .. confval:: gettext_auto_build
 
    If true, Sphinx builds mo file for each translation catalog files.
+
+   The auto-build step runs for project-local catalogs in
+   :confval:`locale_dirs`, ensuring their overrides of bundled messages are
+   available during initialization.
 
    The default is ``True``.
 
