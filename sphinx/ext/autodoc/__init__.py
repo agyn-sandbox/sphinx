@@ -729,6 +729,14 @@ class Documenter:
             has_doc = bool(doc)
 
             metadata = extract_metadata(doc)
+            attr_doc = attr_docs.get((namespace, membername))
+            if attr_doc:
+                if isinstance(attr_doc, (list, tuple)):
+                    attr_doc = '\n'.join(attr_doc)
+                attr_metadata = extract_metadata(attr_doc)
+                if attr_metadata:
+                    metadata = {**attr_metadata, **metadata}
+
             if 'private' in metadata:
                 # consider a member private if docstring has "private" metadata
                 isprivate = True
