@@ -370,14 +370,22 @@ class LiteralIncludeReader:
         base_indent = self._auto_insert_indent(lines)
         prepend_override = self.options.get('prepend-indent')
         append_override = self.options.get('append-indent')
+        prepend_value = self.options.get('prepend')
+        append_value = self.options.get('append')
 
         if prepend_override is None:
-            self._prepend_indent = base_indent
+            if prepend_value and prepend_value[:1] in (' ', '\t'):
+                self._prepend_indent = ''
+            else:
+                self._prepend_indent = base_indent
         else:
             self._prepend_indent = ' ' * prepend_override
 
         if append_override is None:
-            self._append_indent = base_indent
+            if append_value and append_value[:1] in (' ', '\t'):
+                self._append_indent = ''
+            else:
+                self._append_indent = base_indent
         else:
             self._append_indent = ' ' * append_override
 

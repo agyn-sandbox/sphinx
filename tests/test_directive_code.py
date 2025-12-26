@@ -296,6 +296,24 @@ def test_LiteralIncludeReader_insert_indent_overrides(testroot):
 
 
 @pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_prepend_retains_manual_indent(testroot):
+    options = {'pyobject': 'Bar.baz', 'prepend': '    manual prepend'}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content.startswith("    manual prepend\n    def baz():\n")
+    assert lines == 3
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_append_retains_manual_tabs(testroot):
+    options = {'pyobject': 'Bar.baz', 'append': '\tmanual append'}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content.endswith("\tmanual append\n")
+    assert lines == 3
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
 def test_LiteralIncludeReader_dedent(literal_inc_path):
     # dedent: 2
     options = {'lines': '9-11', 'dedent': 2}
