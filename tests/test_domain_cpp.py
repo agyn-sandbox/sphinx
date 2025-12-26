@@ -821,13 +821,28 @@ def test_user_defined_literal_expressions():
         '42q_m': 'clL_Zli3q_mEL42EE',
         '"abc"_x': 'clL_Zli2_xELA3_KcEE',
         "'x'_y": 'clL_Zli2_yEc120E',
-        'u8"hi"_u8s': 'clL_Zli4_u8sELA4_KcEE',
+        'u8"hi"_u8s': 'clL_Zli4_u8sELA4_KDuEE',
         "1'000'000q_m": "clL_Zli3q_mEL1'000'000EE",
         '0x1.fp+2q_J': 'clL_Zli3q_JEL0x1.fp+2EE',
         '1ULL_k': 'clL_Zli2_kEL1ULLEE',
     }
 
     for expr, expected_id in cases.items():
+        parser = DefinitionParser(expr, location=None, config=Config())
+        parser.allowFallbackExpressionParsing = False
+        ast = parser.parse_expression()
+        parser.assert_end()
+        assert str(ast) == expr
+        assert ast.get_id(2) == expected_id
+
+    prefixed_strings = {
+        'u"hi"': 'LA3_KDsE',
+        'U"hi"': 'LA3_KDiE',
+        'L"hi"': 'LA3_KwE',
+        'u8"hi"': 'LA4_KDuE',
+    }
+
+    for expr, expected_id in prefixed_strings.items():
         parser = DefinitionParser(expr, location=None, config=Config())
         parser.allowFallbackExpressionParsing = False
         ast = parser.parse_expression()

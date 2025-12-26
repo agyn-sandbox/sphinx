@@ -839,15 +839,34 @@ class ASTNumberLiteral(ASTLiteral):
 
 
 class ASTStringLiteral(ASTLiteral):
+    _char_type_from_prefix = {
+        None: 'c',
+        'u8': 'Du',
+        'u': 'Ds',
+        'U': 'Di',
+        'L': 'w',
+    }
+
     def __init__(self, data: str) -> None:
         self.data = data
+        if data.startswith('u8"'):
+            self.prefix = 'u8'
+            self._unprefixed = data[2:]
+        elif len(data) > 1 and data[0] in ('L', 'u', 'U') and data[1] == '"':
+            self.prefix = data[0]
+            self._unprefixed = data[1:]
+        else:
+            self.prefix = None
+            self._unprefixed = data
+        self._char_type = self._char_type_from_prefix[self.prefix]
 
     def _stringify(self, transform: StringifyTransform) -> str:
         return self.data
 
     def get_id(self, version: int) -> str:
         # note: the length is not really correct with escaping
-        return "LA%d_KcE" % (len(self.data) - 2)
+        length = len(self.data) - 2
+        return "LA%d_K%sE" % (length, self._char_type)
 
     def describe_signature(self, signode: TextElement, mode: str,
                            env: "BuildEnvironment", symbol: "Symbol") -> None:
