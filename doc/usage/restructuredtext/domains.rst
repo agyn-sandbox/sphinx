@@ -558,6 +558,14 @@ Multiple types in a type field will be linked automatically if separated by the
 word "or"::
 
    :type an_arg: int or None
+
+PEP 604 style unions using the vertical bar are also supported when the pipe is
+surrounded by whitespace::
+
+   :type another_arg: int | str
+
+Values containing a literal pipe, such as ``Literal['foo| bar']``, are treated
+as a single operand and are not split further.
    :vartype a_var: str or int
    :rtype: float or str
 

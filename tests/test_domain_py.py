@@ -1033,6 +1033,170 @@ def test_info_field_list_var(app):
                 refdomain="py", reftype="class", reftarget="int", **{"py:class": "Class"})
 
 
+def test_info_field_list_union_operator(app):
+    text = (".. py:function:: sample(text, choice, nested, maybe, literal, literal_spaced)\n"
+            "\n"
+            "   :param text: textual data\n"
+            "   :type text: bytes | str\n"
+            "   :param choice: legacy union syntax\n"
+            "   :type choice: str or int or None\n"
+            "   :param nested: nested generics\n"
+            "   :type nested: dict[str | int, list[None | int]]\n"
+            "   :param maybe: union with ellipsis\n"
+            "   :type maybe: tuple[int, ...] | None\n"
+            "   :param literal: literal pipe\n"
+            "   :type literal: Literal['|']\n"
+            "   :param literal_spaced: literal containing a pipe\n"
+            "   :type literal_spaced: Literal['foo| bar']\n")
+    doctree = restructuredtext.parse(app, text)
+
+    parameters = doctree[1][1][0][0][1][0]
+
+    text_para = parameters[0][0]
+    assert_node(text_para, ([addnodes.literal_strong, "text"],
+                            " (",
+                            [pending_xref, addnodes.literal_emphasis, "bytes"],
+                            [addnodes.literal_emphasis, " | "],
+                            [pending_xref, addnodes.literal_emphasis, "str"],
+                            ")",
+                            " -- ",
+                            "textual data"))
+    assert_node(text_para[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="bytes")
+    assert_node(text_para[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="str")
+
+    choice_para = parameters[1][0]
+    assert_node(choice_para, ([addnodes.literal_strong, "choice"],
+                              " (",
+                              [pending_xref, addnodes.literal_emphasis, "str"],
+                              [addnodes.literal_emphasis, " or "],
+                              [pending_xref, addnodes.literal_emphasis, "int"],
+                              [addnodes.literal_emphasis, " or "],
+                              [pending_xref, addnodes.literal_emphasis, "None"],
+                              ")",
+                              " -- ",
+                              "legacy union syntax"))
+    assert_node(choice_para[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="str")
+    assert_node(choice_para[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="int")
+    assert_node(choice_para[6], pending_xref,
+                refdomain="py", reftype="obj", reftarget="None")
+
+    nested_para = parameters[2][0]
+    assert_node(nested_para, ([addnodes.literal_strong, "nested"],
+                              " (",
+                              [pending_xref, addnodes.literal_emphasis, "dict"],
+                              [addnodes.literal_emphasis, "["],
+                              [pending_xref, addnodes.literal_emphasis, "str"],
+                              [addnodes.literal_emphasis, " | "],
+                              [pending_xref, addnodes.literal_emphasis, "int"],
+                              [addnodes.literal_emphasis, ", "],
+                              [pending_xref, addnodes.literal_emphasis, "list"],
+                              [addnodes.literal_emphasis, "["],
+                              [pending_xref, addnodes.literal_emphasis, "None"],
+                              [addnodes.literal_emphasis, " | "],
+                              [pending_xref, addnodes.literal_emphasis, "int"],
+                              [addnodes.literal_emphasis, "]"],
+                              [addnodes.literal_emphasis, "]"],
+                              ")",
+                              " -- ",
+                              "nested generics"))
+    assert_node(nested_para[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="dict")
+    assert_node(nested_para[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="str")
+    assert_node(nested_para[6], pending_xref,
+                refdomain="py", reftype="class", reftarget="int")
+    assert_node(nested_para[8], pending_xref,
+                refdomain="py", reftype="class", reftarget="list")
+    assert_node(nested_para[10], pending_xref,
+                refdomain="py", reftype="obj", reftarget="None")
+    assert_node(nested_para[12], pending_xref,
+                refdomain="py", reftype="class", reftarget="int")
+
+    maybe_para = parameters[3][0]
+    assert_node(maybe_para, ([addnodes.literal_strong, "maybe"],
+                             " (",
+                             [pending_xref, addnodes.literal_emphasis, "tuple"],
+                             [addnodes.literal_emphasis, "["],
+                             [pending_xref, addnodes.literal_emphasis, "int"],
+                             [addnodes.literal_emphasis, ", "],
+                             [addnodes.literal_emphasis, "..."],
+                             [addnodes.literal_emphasis, "]"],
+                             [addnodes.literal_emphasis, " | "],
+                             [pending_xref, addnodes.literal_emphasis, "None"],
+                             ")",
+                             " -- ",
+                             "union with ellipsis"))
+    assert_node(maybe_para[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="tuple")
+    assert_node(maybe_para[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="int")
+    assert_node(maybe_para[9], pending_xref,
+                refdomain="py", reftype="obj", reftarget="None")
+
+    literal_para = parameters[4][0]
+    assert_node(literal_para, ([addnodes.literal_strong, "literal"],
+                               " (",
+                               [pending_xref, addnodes.literal_emphasis, "Literal"],
+                               [addnodes.literal_emphasis, "["],
+                               [pending_xref, addnodes.literal_emphasis, "'|'"],
+                               [addnodes.literal_emphasis, "]"],
+                               ")",
+                               " -- ",
+                               "literal pipe"))
+    assert_node(literal_para[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="Literal")
+    assert_node(literal_para[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="'|'")
+    emphasis_texts = [child.astext() for child in literal_para
+                      if isinstance(child, addnodes.literal_emphasis)]
+    assert " | " not in emphasis_texts
+
+    literal_spaced_para = parameters[5][0]
+    assert_node(literal_spaced_para, ([addnodes.literal_strong, "literal_spaced"],
+                                      " (",
+                                      [pending_xref, addnodes.literal_emphasis, "Literal"],
+                                      [addnodes.literal_emphasis, "["],
+                                      [pending_xref, addnodes.literal_emphasis, "'foo| bar'"],
+                                      [addnodes.literal_emphasis, "]"],
+                                      ")",
+                                      " -- ",
+                                      "literal containing a pipe"))
+    assert_node(literal_spaced_para[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="Literal")
+    assert_node(literal_spaced_para[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="'foo| bar'")
+    spaced_emphasis = [child.astext() for child in literal_spaced_para
+                       if isinstance(child, addnodes.literal_emphasis)]
+    assert " | " not in spaced_emphasis
+
+
+def test_info_field_list_vartype_union(app):
+    text = (".. py:class:: Holder\n"
+            "\n"
+            "   :var sample_attribute: attribute text\n"
+            "   :vartype sample_attribute: bytes | str\n")
+    doctree = restructuredtext.parse(app, text)
+
+    field = doctree[1][1][0][0]
+    paragraph = field[1][0]
+    assert_node(paragraph, ([addnodes.literal_strong, "sample_attribute"],
+                            " (",
+                            [pending_xref, addnodes.literal_emphasis, "bytes"],
+                            [addnodes.literal_emphasis, " | "],
+                            [pending_xref, addnodes.literal_emphasis, "str"],
+                            ")",
+                            " -- ",
+                            "attribute text"))
+    assert_node(paragraph[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="bytes")
+    assert_node(paragraph[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="str")
+
+
 @pytest.mark.sphinx(freshenv=True)
 def test_module_index(app):
     text = (".. py:module:: docutils\n"
