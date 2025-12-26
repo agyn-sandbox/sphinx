@@ -8,7 +8,44 @@ from subprocess import PIPE, CalledProcessError
 
 import pytest
 
-from sphinx.util.osutil import cd
+from sphinx.builders.gettext import normalize_and_dedupe_locations
+from sphinx.util.osutil import cd, canon_path, relpath
+
+
+def test_normalize_and_dedupe_locations(tmp_path):
+    outdir = tmp_path / 'gettext'
+    outdir.mkdir()
+
+    srcdir = tmp_path / 'src'
+    srcdir.mkdir()
+
+    first = srcdir / 'index.rst'
+    first.write_text('')
+
+    second = srcdir / 'sub' / 'doc.rst'
+    second.parent.mkdir(parents=True, exist_ok=True)
+    second.write_text('')
+
+    alt_second = str(second.parent / '..' / 'sub' / 'doc.rst')
+
+    positions = [
+        (str(first), 10),
+        (str(first), 10),
+        (str(first), 5),
+        (str(second), 7),
+        (str(second), None),
+        (alt_second, 7),
+    ]
+
+    result = normalize_and_dedupe_locations(positions, str(outdir))
+    expected = [
+        (canon_path(relpath(str(first), str(outdir))), 5),
+        (canon_path(relpath(str(first), str(outdir))), 10),
+        (canon_path(relpath(str(second), str(outdir))), None),
+        (canon_path(relpath(str(second), str(outdir))), 7),
+    ]
+
+    assert result == expected
 
 
 @pytest.mark.sphinx('gettext', srcdir='root-gettext')
@@ -184,3 +221,23 @@ def test_build_single_pot(app):
          'msgid "Generated section".*'),
         result,
         flags=re.S)
+
+
+@pytest.mark.sphinx('gettext', testroot='gettext-location-dedupe')
+def test_gettext_locations_are_deduped(app):
+    app.builder.build_all()
+
+    pot = (app.outdir / 'index.pot').read_text(encoding='utf8')
+    matching_lines = [line for line in pot.splitlines() if 'duplicate.inc:' in line]
+
+    assert len(matching_lines) == 1
+
+    line = matching_lines[0]
+    assert line.startswith('#: ')
+    location = line[3:]
+    path_part, _, line_number = location.rpartition(':')
+
+    assert line_number == '1'
+    assert '\\' not in path_part
+    assert not path_part.startswith('/')
+    assert path_part.endswith('duplicate.inc')

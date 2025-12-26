@@ -5,7 +5,18 @@ from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta, tzinfo
 from os import getenv, path, walk
 from time import time
-from typing import Any, DefaultDict, Dict, Generator, Iterable, List, Set, Tuple, Union
+from typing import (
+    Any,
+    DefaultDict,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 from uuid import uuid4
 
 from docutils import nodes
@@ -30,7 +41,12 @@ logger = logging.getLogger(__name__)
 
 class Message:
     """An entry of translatable message."""
-    def __init__(self, text: str, locations: List[Tuple[str, int]], uuids: List[str]):
+    def __init__(
+        self,
+        text: str,
+        locations: List[Tuple[str, Optional[int]]],
+        uuids: List[str],
+    ) -> None:
         self.text = text
         self.locations = locations
         self.uuids = uuids
@@ -43,7 +59,7 @@ class Catalog:
         self.messages: List[str] = []  # retain insertion order, a la OrderedDict
 
         # msgid -> file, line, uid
-        self.metadata: Dict[str, List[Tuple[str, int, str]]] = OrderedDict()
+        self.metadata: Dict[str, List[Tuple[str, Optional[int], str]]] = OrderedDict()
 
     def add(self, msg: str, origin: Union[Element, "MsgOrigin"]) -> None:
         if not hasattr(origin, 'uid'):
@@ -53,11 +69,17 @@ class Catalog:
         if msg not in self.metadata:  # faster lookup in hash
             self.messages.append(msg)
             self.metadata[msg] = []
+        for source, line, _uuid in self.metadata[msg]:
+            if source == origin.source and line == origin.line:
+                return
         self.metadata[msg].append((origin.source, origin.line, origin.uid))  # type: ignore
 
     def __iter__(self) -> Generator[Message, None, None]:
         for message in self.messages:
-            positions = [(source, line) for source, line, uuid in self.metadata[message]]
+            positions = [
+                (source, line)
+                for source, line, uuid in self.metadata[message]
+            ]
             uuids = [uuid for source, line, uuid in self.metadata[message]]
             yield Message(message, positions, uuids)
 
@@ -203,6 +225,23 @@ def should_write(filepath: str, new_content: str) -> bool:
     return True
 
 
+def normalize_and_dedupe_locations(
+    positions: Iterable[Tuple[str, Optional[int]]],
+    outdir: str,
+) -> List[Tuple[str, Optional[int]]]:
+    normalized: Set[Tuple[str, Optional[int]]] = set()
+    for source, line in positions:
+        rel_source = canon_path(relpath(source, outdir))
+        normalized.add((rel_source, line))
+
+    def sort_key(item: Tuple[str, Optional[int]]) -> Tuple[str, int]:
+        source, line = item
+        line_key = line if line is not None else -1
+        return source, line_key
+
+    return sorted(normalized, key=sort_key)
+
+
 class MessageCatalogBuilder(I18nBuilder):
     """
     Builds gettext-style message catalogs (.pot files).
@@ -269,7 +308,14 @@ class MessageCatalogBuilder(I18nBuilder):
             # noop if config.gettext_compact is set
             ensuredir(path.join(self.outdir, path.dirname(textdomain)))
 
-            context['messages'] = list(catalog)
+            messages = list(catalog)
+            for message in messages:
+                message.locations = normalize_and_dedupe_locations(
+                    message.locations,
+                    self.outdir,
+                )
+
+            context['messages'] = messages
             content = GettextRenderer(outdir=self.outdir).render('message.pot_t', context)
 
             pofn = path.join(self.outdir, textdomain + '.pot')
