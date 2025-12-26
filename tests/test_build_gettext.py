@@ -33,6 +33,7 @@ def test_normalize_and_dedupe_locations(tmp_path):
         (str(first), 10),
         (str(first), 5),
         (str(second), 7),
+        (str(second), None),
         (alt_second, 7),
     ]
 
@@ -40,6 +41,7 @@ def test_normalize_and_dedupe_locations(tmp_path):
     expected = [
         (canon_path(relpath(str(first), str(outdir))), 5),
         (canon_path(relpath(str(first), str(outdir))), 10),
+        (canon_path(relpath(str(second), str(outdir))), None),
         (canon_path(relpath(str(second), str(outdir))), 7),
     ]
 
