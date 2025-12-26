@@ -342,6 +342,21 @@ def test_parse_annotation(app):
     assert_node(doctree[0], pending_xref, refdomain="py", reftype="obj", reftarget="None")
 
 
+@pytest.mark.sphinx('dummy', testroot='domain-py-literal')
+def test_literal_annotations_without_xrefs(app, warning):
+    app.build()
+    assert warning.getvalue() == ''
+
+    doctree = app.env.get_doctree('index')
+
+    reftargets = {node['reftarget'] for node in doctree.traverse(pending_xref)}
+    assert {'Literal', 'Union', 'Annotated', 'bool', 'int'} <= reftargets
+    assert not reftargets.intersection({'True', '1', "'x'", 'None', 'SomeEnum.VALUE', "'a'", "'A'", "'B'"})
+
+    literal_texts = {node.astext() for node in doctree.traverse(nodes.literal)}
+    assert {'True', '1', "'x'", 'None', 'SomeEnum.VALUE', "'a'"} <= literal_texts
+
+
 def test_pyfunction_signature(app):
     text = ".. py:function:: hello(name: str) -> str"
     doctree = restructuredtext.parse(app, text)
