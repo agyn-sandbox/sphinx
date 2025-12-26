@@ -1034,7 +1034,7 @@ def test_info_field_list_var(app):
 
 
 def test_info_field_list_union_operator(app):
-    text = (".. py:function:: sample(text, choice, nested, maybe, literal)\n"
+    text = (".. py:function:: sample(text, choice, nested, maybe, literal, literal_spaced)\n"
             "\n"
             "   :param text: textual data\n"
             "   :type text: bytes | str\n"
@@ -1045,7 +1045,9 @@ def test_info_field_list_union_operator(app):
             "   :param maybe: union with ellipsis\n"
             "   :type maybe: tuple[int, ...] | None\n"
             "   :param literal: literal pipe\n"
-            "   :type literal: Literal['|']\n")
+            "   :type literal: Literal['|']\n"
+            "   :param literal_spaced: literal containing a pipe\n"
+            "   :type literal_spaced: Literal['foo| bar']\n")
     doctree = restructuredtext.parse(app, text)
 
     parameters = doctree[1][1][0][0][1][0]
@@ -1122,8 +1124,8 @@ def test_info_field_list_union_operator(app):
                              [pending_xref, addnodes.literal_emphasis, "int"],
                              [addnodes.literal_emphasis, ", "],
                              [addnodes.literal_emphasis, "..."],
-                             [addnodes.literal_emphasis, "] "],
-                             [addnodes.literal_emphasis, "| "],
+                             [addnodes.literal_emphasis, "]"],
+                             [addnodes.literal_emphasis, " | "],
                              [pending_xref, addnodes.literal_emphasis, "None"],
                              ")",
                              " -- ",
@@ -1152,6 +1154,24 @@ def test_info_field_list_union_operator(app):
     emphasis_texts = [child.astext() for child in literal_para
                       if isinstance(child, addnodes.literal_emphasis)]
     assert " | " not in emphasis_texts
+
+    literal_spaced_para = parameters[5][0]
+    assert_node(literal_spaced_para, ([addnodes.literal_strong, "literal_spaced"],
+                                      " (",
+                                      [pending_xref, addnodes.literal_emphasis, "Literal"],
+                                      [addnodes.literal_emphasis, "["],
+                                      [pending_xref, addnodes.literal_emphasis, "'foo| bar'"],
+                                      [addnodes.literal_emphasis, "]"],
+                                      ")",
+                                      " -- ",
+                                      "literal containing a pipe"))
+    assert_node(literal_spaced_para[2], pending_xref,
+                refdomain="py", reftype="class", reftarget="Literal")
+    assert_node(literal_spaced_para[4], pending_xref,
+                refdomain="py", reftype="class", reftarget="'foo| bar'")
+    spaced_emphasis = [child.astext() for child in literal_spaced_para
+                       if isinstance(child, addnodes.literal_emphasis)]
+    assert " | " not in spaced_emphasis
 
 
 def test_info_field_list_vartype_union(app):

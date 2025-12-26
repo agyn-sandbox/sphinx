@@ -1,7 +1,7 @@
 Python domain docfields with unions
 ===================================
 
-.. py:function:: sample(text, choice, nested, maybe, literal)
+.. py:function:: sample(text, choice, nested, maybe, literal, literal_spaced)
 
    :param text: textual data
    :type text: bytes | str
@@ -13,6 +13,8 @@ Python domain docfields with unions
    :type maybe: tuple[int, ...] | None
    :param literal: literal pipe
    :type literal: Literal['|']
+   :param literal_spaced: literal containing a pipe
+   :type literal_spaced: Literal['foo| bar']
 
 .. py:attribute:: sample_attribute
 
