@@ -35,7 +35,7 @@ from sphinx.util.cfamily import (
     BaseParser, DefinitionError, UnsupportedMultiCharacterCharLiteral,
     identifier_re, anon_identifier_re, integer_literal_re, octal_literal_re,
     hex_literal_re, binary_literal_re, float_literal_re,
-    char_literal_re
+    char_literal_re, udl_identifier_re
 )
 from sphinx.util.docfields import Field, GroupedField
 from sphinx.util.docutils import SphinxDirective
@@ -880,6 +880,24 @@ class ASTCharLiteral(ASTLiteral):
                            env: "BuildEnvironment", symbol: "Symbol") -> None:
         txt = str(self)
         signode.append(nodes.Text(txt, txt))
+
+
+class ASTUserDefinedLiteral(ASTLiteral):
+    def __init__(self, base: ASTLiteral, suffix: str) -> None:
+        self.base = base
+        self.suffix = suffix
+
+    def _stringify(self, transform: StringifyTransform) -> str:
+        return transform(self.base) + self.suffix
+
+    def get_id(self, version: int) -> str:
+        identifier = ASTIdentifier(self.suffix)
+        return 'clL_Zli%sE%sE' % (identifier.get_id(version), self.base.get_id(version))
+
+    def describe_signature(self, signode: TextElement, mode: str,
+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
+        self.base.describe_signature(signode, mode, env, symbol)
+        signode.append(nodes.Text(self.suffix, self.suffix))
 
 
 class ASTThisLiteral(ASTExpression):
@@ -4625,9 +4643,14 @@ class DefinitionParser(BaseParser):
         return self.config.cpp_paren_attributes
 
     def _parse_string(self) -> str:
-        if self.current_char != '"':
-            return None
         startPos = self.pos
+        if self.definition.startswith('u8', self.pos):
+            self.pos += 2
+        elif self.current_char in ('L', 'u', 'U'):
+            self.pos += 1
+        if self.current_char != '"':
+            self.pos = startPos
+            return None
         self.pos += 1
         escape = False
         while True:
@@ -4652,6 +4675,18 @@ class DefinitionParser(BaseParser):
         #  | pointer-literal -> "nullptr"
         #  | user-defined-literal
         self.skip_ws()
+
+        def attach_user_defined(literal: ASTLiteral) -> ASTLiteral:
+            if self.eof:
+                return literal
+            current = self.current_char
+            if current == 'EOF':
+                return literal
+            if current.isalpha() or current == '_':
+                if self.match(udl_identifier_re):
+                    return ASTUserDefinedLiteral(literal, self.matched_text)
+            return literal
+
         if self.skip_word('nullptr'):
             return ASTPointerLiteral()
         if self.skip_word('true'):
@@ -4662,27 +4697,28 @@ class DefinitionParser(BaseParser):
                       integer_literal_re, octal_literal_re]:
             pos = self.pos
             if self.match(regex):
-                while self.current_char in 'uUlLfF':
+                while not self.eof and self.current_char in 'uUlLfF':
                     self.pos += 1
-                return ASTNumberLiteral(self.definition[pos:self.pos])
+                number = ASTNumberLiteral(self.definition[pos:self.pos])
+                return attach_user_defined(number)
 
         string = self._parse_string()
         if string is not None:
-            return ASTStringLiteral(string)
+            return attach_user_defined(ASTStringLiteral(string))
 
         # character-literal
         if self.match(char_literal_re):
             prefix = self.last_match.group(1)  # may be None when no prefix
             data = self.last_match.group(2)
             try:
-                return ASTCharLiteral(prefix, data)
+                literal = ASTCharLiteral(prefix, data)
+                return attach_user_defined(literal)
             except UnicodeDecodeError as e:
                 self.fail("Can not handle character literal. Internal error was: %s" % e)
             except UnsupportedMultiCharacterCharLiteral:
                 self.fail("Can not handle character literal"
                           " resulting in multiple decoded characters.")
 
-        # TODO: user-defined lit
         return None
 
     def _parse_fold_or_paren_expression(self) -> ASTExpression:
