@@ -2475,6 +2475,32 @@ Options for the linkcheck builder
 
    .. versionadded:: 1.5
 
+.. confval:: linkcheck_check_local
+
+   Enable verification of local links (links without an HTTP or HTTPS scheme)
+   when running the :program:`linkcheck` builder. Local links are resolved in
+   the same way as the selected HTML builder and follow
+   :confval:`linkcheck_ignore`, :confval:`linkcheck_anchors`, and
+   :confval:`linkcheck_anchors_ignore`. Default is ``False``.
+
+   .. versionadded:: 3.2
+
+.. confval:: linkcheck_local_builder
+
+   Select how local links are mapped to generated HTML paths when
+   :confval:`linkcheck_check_local` is enabled. Accepted values are
+   ``"html"`` (default) and ``"dirhtml"``.
+
+   .. versionadded:: 3.2
+
+.. confval:: linkcheck_local_root
+
+   Base path used to resolve links that start with ``/`` when
+   :confval:`linkcheck_check_local` is enabled. If unset, site-root absolute
+   links are ignored.
+
+   .. versionadded:: 3.2
+
 .. confval:: linkcheck_auth
 
    Pass authentication information when doing a ``linkcheck`` build.
