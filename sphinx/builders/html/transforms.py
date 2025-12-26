@@ -90,16 +90,25 @@ class KeyboardTransform(SphinxPostTransform):
         indices: Set[int] = set()
         text_index = 0
         pos = 0
+        text_len = len(text)
 
-        while pos < len(content) and text_index < len(text):
+        while pos < len(content) and text_index < text_len:
             char = content[pos]
-            if char == '\\' and pos + 1 < len(content) and content[pos + 1] in '-+^':
-                indices.add(text_index)
+            if char == '\\':
+                if pos + 1 >= len(content):
+                    pos += 1
+                    continue
+
+                escaped = content[pos + 1]
+                if escaped in '-+^':
+                    indices.add(text_index)
+
                 pos += 2
                 text_index += 1
-            else:
-                pos += 1
-                text_index += 1
+                continue
+
+            pos += 1
+            text_index += 1
 
         return indices
 

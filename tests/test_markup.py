@@ -334,6 +334,13 @@ def get_verifier(verify, verify_re):
         None,
     ),
     (
+        # kbd role escaped separator after other escapes
+        'verify',
+        ':kbd:`\\|\\-\\|`',
+        '<p><kbd class="kbd docutils literal notranslate">|-|</kbd></p>',
+        None,
+    ),
+    (
         # non-interpolation of dashes in option role
         'verify_re',
         ':option:`--with-option`',
