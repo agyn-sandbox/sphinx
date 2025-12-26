@@ -659,6 +659,35 @@ def test_autodoc_imported_members(app):
 
 
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_autodoc_module_with_explicit_empty_all(app):
+    options = {"members": None}
+    actual = do_autodoc(app, 'module', 'target.empty_all', options)
+    assert list(filter(lambda l: 'function::' in l, actual)) == []
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_autodoc_module_explicit_members_with_empty_all(app):
+    options = {"members": "foo,baz"}
+    actual = do_autodoc(app, 'module', 'target.empty_all', options)
+    assert list(filter(lambda l: 'function::' in l, actual)) == [
+        '.. py:function:: baz() -> None',
+        '.. py:function:: foo() -> None',
+    ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_autodoc_module_ignore_empty_all(app):
+    options = {"members": None,
+               "ignore-module-all": None}
+    actual = do_autodoc(app, 'module', 'target.empty_all', options)
+    assert list(filter(lambda l: 'function::' in l, actual)) == [
+        '.. py:function:: bar() -> None',
+        '.. py:function:: baz() -> None',
+        '.. py:function:: foo() -> None',
+    ]
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_autodoc_special_members(app):
     # specific special methods
     options = {"undoc-members": None,
