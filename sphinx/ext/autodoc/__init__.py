@@ -1065,7 +1065,6 @@ class DocstringSignatureMixin:
                     break
                 _exmod, _path, base, args, retann = match.groups()
                 if base not in valid_names:
-                    matches = []
                     break
                 matches.append((args, retann))
 

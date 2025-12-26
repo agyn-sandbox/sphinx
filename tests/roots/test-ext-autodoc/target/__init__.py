@@ -154,6 +154,14 @@ overloaded() -> None
         """
         pass
 
+    def with_alias(self):
+        """with_alias(x: int) -> int
+Alias: MultiSigDocstring.overloaded
+
+        Alias description.
+        """
+        pass
+
 
 class StrRepr(str):
     """docstring"""

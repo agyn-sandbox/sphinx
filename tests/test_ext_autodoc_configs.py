@@ -345,6 +345,17 @@ def test_autodoc_docstring_multiple_signatures(app):
 
 
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
+def test_autodoc_docstring_signature_alias_line(app):
+    app.config.autodoc_docstring_signature = True
+    actual = do_autodoc(app, 'method', 'target.MultiSigDocstring.with_alias')
+    lines = list(actual)
+
+    assert lines[1] == '.. py:method:: MultiSigDocstring.with_alias(x: int) -> int'
+    assert any(line.strip() == 'Alias: MultiSigDocstring.overloaded' for line in lines)
+    assert any(line.strip() == 'Alias description.' for line in lines)
+
+
+@pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_autoclass_content_and_docstring_signature_class(app):
     app.config.autoclass_content = 'class'
     options = {"members": None,
