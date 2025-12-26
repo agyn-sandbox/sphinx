@@ -12,7 +12,19 @@ import re
 import unicodedata
 import warnings
 from copy import copy
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 from typing import cast
 
 from docutils import nodes
@@ -52,7 +64,9 @@ class GenericObject(ObjectDescription):
     A generic x-ref directive registered with Sphinx.add_object_type().
     """
     indextemplate = ''
-    parse_node = None  # type: Callable[[GenericObject, BuildEnvironment, str, desc_signature], str]  # NOQA
+    parse_node: Optional[
+        Callable[["GenericObject", "BuildEnvironment", str, desc_signature], str]
+    ] = None
 
     def handle_signature(self, sig: str, signode: desc_signature) -> str:
         if self.parse_node:
@@ -613,23 +627,17 @@ class StandardDomain(Domain):
     def __init__(self, env: "BuildEnvironment") -> None:
         super().__init__(env)
 
-        app_config = getattr(env.app, 'config', None)
-        self.term_case_sensitive = bool(
-            getattr(app_config, 'glossary_terms_case_sensitive', False)
-        )
-
-        # clone term role to toggle automatic lowercasing per configuration
-        self.roles = self.roles.copy()
-        term_role = self.roles.get('term')
-        if isinstance(term_role, XRefRole):
-            cloned_role = copy(term_role)
-            cloned_role.lowercase = not self.term_case_sensitive
-            self.roles['term'] = cloned_role
+        self._ensure_term_role_mode()
 
         # set up enumerable nodes
         self.enumerable_nodes = copy(self.enumerable_nodes)  # create a copy for this instance
         for node, settings in env.app.registry.enumerable_nodes.items():
             self.enumerable_nodes[node] = settings
+
+    def role(self, name: str) -> RoleFunction:
+        if name == 'term':
+            self._ensure_term_role_mode()
+        return super().role(name)
 
     def note_hyperlink_target(self, name: str, docname: str, node_id: str,
                               title: str = '') -> None:
@@ -692,8 +700,27 @@ class StandardDomain(Domain):
     def term_originals(self) -> Dict[str, Dict[str, Set[str]]]:
         return self.data.setdefault('term_originals', {})
 
+    def _is_term_case_sensitive(self) -> bool:
+        config = self.env.config
+        if config is None:
+            return False
+        return bool(config.glossary_terms_case_sensitive)
+
+    def _ensure_term_role_mode(self) -> None:
+        term_role = self.roles.get('term')
+        if not isinstance(term_role, XRefRole):
+            return
+
+        expected_lowercase = not self._is_term_case_sensitive()
+        if term_role.lowercase != expected_lowercase:
+            cloned_role = copy(term_role)
+            cloned_role.lowercase = expected_lowercase
+            self.roles['term'] = cloned_role
+            self._role_cache.pop('term', None)
+
     def _normalize_term_name(self, name: str) -> str:
-        return name if self.term_case_sensitive else name.lower()
+        self._ensure_term_role_mode()
+        return name if self._is_term_case_sensitive() else name.lower()
 
     def _term_has_exact_case(self, normalized: str, original: str) -> bool:
         for per_doc in self.term_originals.values():
@@ -710,7 +737,7 @@ class StandardDomain(Domain):
         other_doc = None
         if key in self.objects:
             other_doc = self.objects[key][0]
-            if self.term_case_sensitive:
+            if self._is_term_case_sensitive():
                 warn_duplicate = True
             elif self._term_has_exact_case(normalized, name):
                 warn_duplicate = True
