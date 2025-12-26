@@ -10,7 +10,7 @@
 """
 
 import warnings
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Set, Tuple, Union
 from typing import cast
 
 from docutils import nodes
@@ -254,6 +254,19 @@ class DocFieldTransformer:
         entries = []        # type: List[Union[nodes.field, Tuple[Field, Any]]]
         groupindices = {}   # type: Dict[str, int]
         types = {}          # type: Dict[str, Dict]
+        explicit_types = {}  # type: Dict[str, Set[str]]
+
+        # pre-scan for explicit type declarations so they can block inline fallback
+        for field in cast(List[nodes.field], node):
+            field_name = cast(nodes.field_name, field[0])
+            try:
+                fieldtype_name, fieldarg = field_name.astext().split(None, 1)
+            except ValueError:
+                fieldtype_name, fieldarg = field_name.astext(), ''
+            typedesc, is_typefield = typemap.get(fieldtype_name, (None, None))
+            if typedesc is not None and is_typefield and fieldarg:
+                typename = typedesc.name
+                explicit_types.setdefault(typename, set()).add(fieldarg)
 
         # step 1: traverse all fields and collect field types and content
         for field in cast(List[nodes.field], node):
@@ -320,14 +333,16 @@ class DocFieldTransformer:
 
             # also support syntax like ``:param type name:``
             if typedesc.is_typed:
-                try:
-                    argtype, argname = fieldarg.split(None, 1)
-                except ValueError:
-                    pass
-                else:
-                    types.setdefault(typename, {})[argname] = \
-                        [nodes.Text(argtype)]
-                    fieldarg = argname
+                type_map = types.setdefault(typename, {})
+                if (fieldarg not in type_map and
+                        fieldarg not in explicit_types.get(typename, set())):
+                    try:
+                        argtype, argname = fieldarg.split(None, 1)
+                    except ValueError:
+                        pass
+                    else:
+                        type_map[argname] = [nodes.Text(argtype)]
+                        fieldarg = argname
 
             translatable_content = nodes.inline(field_body.rawsource,
                                                 translatable=True)
