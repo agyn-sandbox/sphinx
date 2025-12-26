@@ -10,9 +10,12 @@ Local linkcheck test
    page
    ignored
    dir/section
+   another
+   dir/another
 
 - `Working page <working.html>`_
 - `Working slash <working/>`_
+- `Relative page <page.html>`_
 - `Missing page <missing.html>`_
 - `Anchor ok <page.html#target-anchor>`_
 - `Anchor missing <page.html#missing-anchor>`_

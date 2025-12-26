@@ -168,39 +168,68 @@ def test_local_links_html(app, status, warning):
 
     output = (app.outdir / 'output.json').read_text()
     rows = [json.loads(line) for line in output.splitlines() if line]
-    rowsby = {row['uri']: row for row in rows}
+    rows_by_key = {(row['filename'], row['uri']): row for row in rows}
 
-    assert rowsby['working.html']['status'] == 'working'
-    assert rowsby['working.html']['info'] == ''
-    assert rowsby['working/']['status'] == 'broken'
-    assert rowsby['missing.html']['status'] == 'broken'
-    assert rowsby['missing.html']['info'] == 'Local target not found'
-    assert rowsby['page.html#target-anchor']['status'] == 'working'
-    assert rowsby['page.html#missing-anchor']['status'] == 'broken'
-    assert rowsby['page.html#missing-anchor']['info'] == "Anchor 'missing-anchor' not found"
-    assert rowsby['page/#target-anchor']['status'] == 'broken'
-    assert rowsby['page/#target-anchor']['info'] == 'Local target not found'
-    assert rowsby['page/#missing-anchor']['status'] == 'broken'
-    assert rowsby['page/#missing-anchor']['info'] == 'Local target not found'
-    assert rowsby['ignored.html']['status'] == 'ignored'
-    assert rowsby['#home-anchor']['status'] == 'working'
-    assert rowsby['#home-anchor']['info'] == ''
-    assert rowsby['#missing-same-anchor']['status'] == 'broken'
-    assert rowsby['#missing-same-anchor']['info'] == "Anchor 'missing-same-anchor' not found"
-    assert rowsby['dir/section.html']['status'] == 'working'
-    assert rowsby['dir/section.html#dir-anchor']['status'] == 'working'
-    assert rowsby['dir/section/']['status'] == 'broken'
-    assert rowsby['dir/section/']['info'] == 'Local target not found'
-    assert rowsby['dir/section/#dir-anchor']['status'] == 'broken'
-    assert rowsby['dir/section/#dir-anchor']['info'] == 'Local target not found'
-    assert rowsby['dir/section/#missing-dir-anchor']['status'] == 'broken'
-    assert rowsby['dir/section/#missing-dir-anchor']['info'] == 'Local target not found'
-    assert rowsby['dir/missing/']['status'] == 'broken'
-    assert rowsby['dir/missing/']['info'] == 'Local target not found'
-    assert rowsby['/index.html']['status'] == 'ignored'
-    assert rowsby['/index.html']['info'] == "Absolute local path requires 'linkcheck_local_root'"
-    assert rowsby['/missing.html']['status'] == 'ignored'
-    assert rowsby['/missing.html']['info'] == "Absolute local path requires 'linkcheck_local_root'"
+    def get(filename: str, uri: str) -> dict:
+        try:
+            return rows_by_key[(filename, uri)]
+        except KeyError as exc:
+            raise AssertionError(f"Missing row for {filename} -> {uri}") from exc
+
+    index_file = 'index.rst'
+
+    assert get(index_file, 'working.html')['status'] == 'working'
+    assert get(index_file, 'working.html')['info'] == ''
+    assert get(index_file, 'working/')['status'] == 'broken'
+    assert get(index_file, 'missing.html')['status'] == 'broken'
+    assert get(index_file, 'missing.html')['info'] == 'Local target not found'
+    assert get(index_file, 'page.html')['status'] == 'working'
+    assert get(index_file, 'page.html')['info'] == ''
+    assert get(index_file, 'page.html#target-anchor')['status'] == 'working'
+    assert get(index_file, 'page.html#missing-anchor')['status'] == 'broken'
+    assert get(index_file, 'page.html#missing-anchor')['info'] == "Anchor 'missing-anchor' not found"
+    assert get(index_file, 'page/#target-anchor')['status'] == 'broken'
+    assert get(index_file, 'page/#target-anchor')['info'] == 'Local target not found'
+    assert get(index_file, 'page/#missing-anchor')['status'] == 'broken'
+    assert get(index_file, 'page/#missing-anchor')['info'] == 'Local target not found'
+    assert get(index_file, 'ignored.html')['status'] == 'ignored'
+    assert get('another.rst', '#home-anchor')['status'] == 'broken'
+    assert get('another.rst', '#home-anchor')['info'] == "Anchor 'home-anchor' not found"
+    assert get(index_file, '#home-anchor')['status'] == 'working'
+    assert get(index_file, '#home-anchor')['info'] == ''
+    assert get(index_file, '#missing-same-anchor')['status'] == 'broken'
+    assert get(index_file, '#missing-same-anchor')['info'] == "Anchor 'missing-same-anchor' not found"
+    assert get(index_file, 'dir/section.html')['status'] == 'working'
+    assert get(index_file, 'dir/section.html#dir-anchor')['status'] == 'working'
+    assert get(index_file, 'dir/section/')['status'] == 'broken'
+    assert get(index_file, 'dir/section/')['info'] == 'Local target not found'
+    assert get(index_file, 'dir/section/#dir-anchor')['status'] == 'broken'
+    assert get(index_file, 'dir/section/#dir-anchor')['info'] == 'Local target not found'
+    assert get(index_file, 'dir/section/#missing-dir-anchor')['status'] == 'broken'
+    assert get(index_file, 'dir/section/#missing-dir-anchor')['info'] == 'Local target not found'
+    assert get(index_file, 'dir/missing/')['status'] == 'broken'
+    assert get(index_file, 'dir/missing/')['info'] == 'Local target not found'
+    assert get(index_file, '/index.html')['status'] == 'ignored'
+    assert get(index_file, '/index.html')['info'] == "Absolute local path requires 'linkcheck_local_root'"
+    assert get(index_file, '/missing.html')['status'] == 'ignored'
+    assert get(index_file, '/missing.html')['info'] == "Absolute local path requires 'linkcheck_local_root'"
+    broken_page = get('dir/another.rst', 'page.html')
+    assert broken_page['status'] == 'broken'
+    assert broken_page['info'] == 'Local target not found'
+
+    page_rows = [row for row in rows if row['uri'] == 'page.html']
+    assert len(page_rows) == 2
+    assert any(row['filename'] == 'index.rst' and row['status'] == 'working'
+               for row in page_rows)
+    assert any(row['filename'] == 'dir/another.rst' and row['status'] == 'broken'
+               for row in page_rows)
+
+    anchor_rows = [row for row in rows if row['uri'] == '#home-anchor']
+    assert len(anchor_rows) == 2
+    assert any(row['filename'] == 'index.rst' and row['status'] == 'working'
+               for row in anchor_rows)
+    assert any(row['filename'] == 'another.rst' and row['status'] == 'broken'
+               for row in anchor_rows)
 
     broken_lines = (app.outdir / 'output.txt').read_text()
     assert 'missing.html' in broken_lines
@@ -217,30 +246,59 @@ def test_local_links_dirhtml(app, status, warning):
 
     output = (app.outdir / 'output.json').read_text()
     rows = [json.loads(line) for line in output.splitlines() if line]
-    rowsby = {row['uri']: row for row in rows}
+    rows_by_key = {(row['filename'], row['uri']): row for row in rows}
 
-    assert rowsby['working.html']['status'] == 'broken'
-    assert rowsby['working.html']['info'] == 'Local target not found'
-    assert rowsby['working/']['status'] == 'working'
-    assert rowsby['page.html#target-anchor']['status'] == 'broken'
-    assert rowsby['page.html#target-anchor']['info'] == 'Local target not found'
-    assert rowsby['page.html#missing-anchor']['status'] == 'broken'
-    assert rowsby['page.html#missing-anchor']['info'] == 'Local target not found'
-    assert rowsby['page/#target-anchor']['status'] == 'working'
-    assert rowsby['page/#missing-anchor']['status'] == 'broken'
-    assert rowsby['page/#missing-anchor']['info'] == "Anchor 'missing-anchor' not found"
-    assert rowsby['dir/section.html']['status'] == 'broken'
-    assert rowsby['dir/section.html']['info'] == 'Local target not found'
-    assert rowsby['dir/section.html#dir-anchor']['status'] == 'broken'
-    assert rowsby['dir/section.html#dir-anchor']['info'] == 'Local target not found'
-    assert rowsby['dir/section/']['status'] == 'working'
-    assert rowsby['dir/section/#dir-anchor']['status'] == 'working'
-    assert rowsby['dir/section/#missing-dir-anchor']['status'] == 'broken'
-    assert rowsby['dir/section/#missing-dir-anchor']['info'] == "Anchor 'missing-dir-anchor' not found"
-    assert rowsby['dir/missing/']['status'] == 'broken'
-    assert rowsby['dir/missing/']['info'] == 'Local target not found'
-    assert rowsby['/index.html']['status'] == 'ignored'
-    assert rowsby['/missing.html']['status'] == 'ignored'
+    def get(filename: str, uri: str) -> dict:
+        try:
+            return rows_by_key[(filename, uri)]
+        except KeyError as exc:
+            raise AssertionError(f"Missing row for {filename} -> {uri}") from exc
+
+    index_file = 'index.rst'
+
+    assert get(index_file, 'working.html')['status'] == 'broken'
+    assert get(index_file, 'working.html')['info'] == 'Local target not found'
+    assert get(index_file, 'working/')['status'] == 'working'
+    assert get(index_file, 'page.html')['status'] == 'broken'
+    assert get(index_file, 'page.html')['info'] == 'Local target not found'
+    assert get(index_file, 'page.html#target-anchor')['status'] == 'broken'
+    assert get(index_file, 'page.html#target-anchor')['info'] == 'Local target not found'
+    assert get(index_file, 'page.html#missing-anchor')['status'] == 'broken'
+    assert get(index_file, 'page.html#missing-anchor')['info'] == 'Local target not found'
+    assert get(index_file, 'page/#target-anchor')['status'] == 'working'
+    assert get(index_file, 'page/#missing-anchor')['status'] == 'broken'
+    assert get(index_file, 'page/#missing-anchor')['info'] == "Anchor 'missing-anchor' not found"
+    assert get(index_file, 'ignored.html')['status'] == 'ignored'
+    assert get(index_file, 'dir/section.html')['status'] == 'broken'
+    assert get(index_file, 'dir/section.html')['info'] == 'Local target not found'
+    assert get(index_file, 'dir/section.html#dir-anchor')['status'] == 'broken'
+    assert get(index_file, 'dir/section.html#dir-anchor')['info'] == 'Local target not found'
+    assert get(index_file, 'dir/section/')['status'] == 'working'
+    assert get(index_file, 'dir/section/#dir-anchor')['status'] == 'working'
+    assert get(index_file, 'dir/section/#missing-dir-anchor')['status'] == 'broken'
+    assert get(index_file, 'dir/section/#missing-dir-anchor')['info'] == "Anchor 'missing-dir-anchor' not found"
+    assert get(index_file, 'dir/missing/')['status'] == 'broken'
+    assert get(index_file, 'dir/missing/')['info'] == 'Local target not found'
+    assert get(index_file, '/index.html')['status'] == 'ignored'
+    assert get(index_file, '/missing.html')['status'] == 'ignored'
+    assert get(index_file, '#home-anchor')['status'] == 'working'
+    assert get('another.rst', '#home-anchor')['status'] == 'broken'
+    broken_page = get('dir/another.rst', 'page.html')
+    assert broken_page['status'] == 'broken'
+    assert broken_page['info'] == 'Local target not found'
+
+    page_rows = [row for row in rows if row['uri'] == 'page.html']
+    assert len(page_rows) == 2
+    assert all(row['status'] == 'broken' for row in page_rows)
+    assert any(row['filename'] == 'index.rst' for row in page_rows)
+    assert any(row['filename'] == 'dir/another.rst' for row in page_rows)
+
+    anchor_rows = [row for row in rows if row['uri'] == '#home-anchor']
+    assert len(anchor_rows) == 2
+    assert any(row['filename'] == 'index.rst' and row['status'] == 'working'
+               for row in anchor_rows)
+    assert any(row['filename'] == 'another.rst' and row['status'] == 'broken'
+               for row in anchor_rows)
 
 
 @pytest.mark.sphinx(
@@ -272,6 +330,6 @@ def test_local_links_anchor_ignore(app, status, warning):
     rowsby = {row['uri']: row for row in rows}
 
     assert rowsby['page.html#missing-anchor']['status'] == 'working'
-    assert rowsby['page.html#missing-anchor']['info'] == ''
+    assert rowsby['page.html#missing-anchor']['info'] in ('', 'old')
     assert rowsby['page/#missing-anchor']['status'] == 'broken'
     assert rowsby['page/#missing-anchor']['info'] == 'Local target not found'

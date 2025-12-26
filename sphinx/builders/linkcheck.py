@@ -113,6 +113,8 @@ class CheckExternalLinksBuilder(Builder):
         self._doc_output_cache = {}    # type: Dict[str, str]
         self._anchor_cache = {}        # type: Dict[str, Set[str]]
         self._anchor_cache_lock = threading.Lock()
+        self._local_good = set()       # type: Set[Tuple[str, Optional[str]]]
+        self._local_broken = {}        # type: Dict[Tuple[str, Optional[str]], str]
         if self._check_local_enabled:
             self._build_local_target_index()
         # set a timeout for non-responding servers
@@ -241,35 +243,33 @@ class CheckExternalLinksBuilder(Builder):
             if uri.startswith('#'):
                 if not self._check_local_enabled:
                     return 'unchecked', '', 0
-                if uri in self.good:
-                    return 'working', 'old', 0
-                if uri in self.broken:
-                    return 'broken', self.broken[uri], 0
                 for rex in self.to_ignore:
                     if rex.match(uri):
                         return 'ignored', '', 0
-                status, info = self._check_local(docname, uri)
-                if status == 'working':
-                    self.good.add(uri)
-                elif status == 'broken':
-                    self.broken[uri] = info
+                resolved = self._resolve_local(docname, uri)
+                cache_key = self._local_cache_key(resolved)
+                cached = self._local_cache_lookup(cache_key)
+                if cached is not None:
+                    status, info = cached
+                    return status, info, 0
+                status, info, cache_key = self._check_local(docname, uri, resolved)
+                self._update_local_cache(cache_key, status, info)
                 return status, info, 0
 
             if not uri.startswith(('http:', 'https:')):
                 if not self._check_local_enabled:
                     return 'local', '', 0
-                if uri in self.good:
-                    return 'working', 'old', 0
-                if uri in self.broken:
-                    return 'broken', self.broken[uri], 0
                 for rex in self.to_ignore:
                     if rex.match(uri):
                         return 'ignored', '', 0
-                status, info = self._check_local(docname, uri)
-                if status == 'working':
-                    self.good.add(uri)
-                elif status == 'broken':
-                    self.broken[uri] = info
+                resolved = self._resolve_local(docname, uri)
+                cache_key = self._local_cache_key(resolved)
+                cached = self._local_cache_lookup(cache_key)
+                if cached is not None:
+                    status, info = cached
+                    return status, info, 0
+                status, info, cache_key = self._check_local(docname, uri, resolved)
+                self._update_local_cache(cache_key, status, info)
                 return status, info, 0
 
             if uri in self.good:
@@ -416,6 +416,33 @@ class CheckExternalLinksBuilder(Builder):
         self._doc_output_cache[docname] = result
         return result
 
+    def _local_cache_key(
+        self, resolved: Optional[Tuple[str, Optional[str]]]
+    ) -> Optional[Tuple[str, Optional[str]]]:
+        if resolved is None:
+            return None
+        return resolved[0], resolved[1]
+
+    def _local_cache_lookup(
+        self, cache_key: Optional[Tuple[str, Optional[str]]]
+    ) -> Optional[Tuple[str, str]]:
+        if cache_key is None:
+            return None
+        if cache_key in self._local_good:
+            return 'working', 'old'
+        if cache_key in self._local_broken:
+            return 'broken', self._local_broken[cache_key]
+        return None
+
+    def _update_local_cache(self, cache_key: Optional[Tuple[str, Optional[str]]],
+                            status: str, info: str) -> None:
+        if cache_key is None:
+            return
+        if status == 'working':
+            self._local_good.add(cache_key)
+        elif status == 'broken':
+            self._local_broken[cache_key] = info
+
     def _canonical_output_path(self, path_fragment: str, trailing_slash: bool) -> str:
         if trailing_slash:
             base = path_fragment.rstrip('/')
@@ -511,21 +538,25 @@ class CheckExternalLinksBuilder(Builder):
                 anchors.update(node_ids)
         return anchors
 
-    def _check_local(self, docname: str, uri: str) -> Tuple[str, str]:
-        resolved = self._resolve_local(docname, uri)
+    def _check_local(self, docname: str, uri: str,
+                     resolved: Optional[Tuple[str, Optional[str]]] = None
+                     ) -> Tuple[str, str, Optional[Tuple[str, Optional[str]]]]:
         if resolved is None:
-            return 'ignored', __("Absolute local path requires 'linkcheck_local_root'")
+            resolved = self._resolve_local(docname, uri)
+        if resolved is None:
+            return 'ignored', __("Absolute local path requires 'linkcheck_local_root'"), None
 
         target_path, anchor = resolved
+        cache_key = (target_path, anchor)
         target_docname = self._map_path_to_docname(target_path)
         if target_docname is None:
-            return 'broken', __('Local target not found')
+            return 'broken', __('Local target not found'), cache_key
 
         if anchor and self.app.config.linkcheck_anchors:
             if not self._check_local_anchor(target_docname, anchor):
-                return 'broken', __("Anchor '%s' not found") % anchor
+                return 'broken', __("Anchor '%s' not found") % anchor, cache_key
 
-        return 'working', ''
+        return 'working', '', cache_key
 
     def write_entry(self, what: str, docname: str, filename: str, line: int,
                     uri: str) -> None:
