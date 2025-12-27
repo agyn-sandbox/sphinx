@@ -158,7 +158,7 @@ class GoogleDocstring:
         if not hasattr(self, '_directive_sections'):
             self._directive_sections = []  # type: List[str]
         if not hasattr(self, '_sections'):
-            self._sections = {
+            self._sections: Dict[str, Callable] = {
                 'args': self._parse_parameters_section,
                 'arguments': self._parse_parameters_section,
                 'attention': partial(self._parse_admonition, 'attention'),
@@ -191,7 +191,7 @@ class GoogleDocstring:
                 'warns': self._parse_warns_section,
                 'yield': self._parse_yields_section,
                 'yields': self._parse_yields_section,
-            }  # type: Dict[str, Callable]
+            }
 
         self._load_custom_sections()
 
@@ -222,8 +222,10 @@ class GoogleDocstring:
     def _consume_indented_block(self, indent: int = 1) -> List[str]:
         lines = []
         line = self._line_iter.peek()
-        while(not self._is_section_break() and
-              (not line or self._is_indented(line, indent))):
+        while (
+            not self._is_section_break() and
+            (not line or self._is_indented(line, indent))
+        ):
             lines.append(next(self._line_iter))
             line = self._line_iter.peek()
         return lines
@@ -337,15 +339,25 @@ class GoogleDocstring:
             return [line[min_indent:] for line in lines]
 
     def _escape_args_and_kwargs(self, name: str) -> str:
-        if name.endswith('_') and getattr(self._config, 'strip_signature_backslash', False):
-            name = name[:-1] + r'\_'
+        def _escape_single(token: str) -> str:
+            if token.endswith('_') and getattr(
+                self._config, 'strip_signature_backslash', False
+            ):
+                token = token[:-1] + r'\_'
 
-        if name[:2] == '**':
-            return r'\*\*' + name[2:]
-        elif name[:1] == '*':
-            return r'\*' + name[1:]
-        else:
-            return name
+            if token[:2] == '**':
+                return r'\*\*' + token[2:]
+            elif token[:1] == '*':
+                return r'\*' + token[1:]
+            else:
+                return token
+
+        parts = [part for part in re.split(r'\s*,\s*', name.strip()) if part]
+        if not parts:
+            return ''
+
+        escaped = [_escape_single(part) for part in parts]
+        return ', '.join(escaped)
 
     def _fix_field_desc(self, desc: List[str]) -> List[str]:
         if self._is_list(desc):
@@ -1081,11 +1093,12 @@ class NumpyDocstring(GoogleDocstring):
 
     def _escape_args_and_kwargs(self, name: str) -> str:
         func = super()._escape_args_and_kwargs
+        parts = [part for part in re.split(r'\s*,\s*', name.strip()) if part]
 
-        if ", " in name:
-            return ", ".join(func(param) for param in name.split(", "))
-        else:
-            return func(name)
+        if len(parts) <= 1:
+            return func(parts[0] if parts else '')
+
+        return ', '.join(func(part) for part in parts)
 
     def _consume_field(self, parse_type: bool = True, prefer_type: bool = False
                        ) -> Tuple[str, str, List[str]]:

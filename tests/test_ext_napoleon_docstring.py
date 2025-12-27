@@ -1230,7 +1230,7 @@ class NumpyDocstringTest(BaseDocstringTest):
         """
         Single line summary
 
-        :Parameters: * **arg1** (*str*) -- Extended description of arg1
+        :Parameters: * **arg1** (:class:`str`) -- Extended description of arg1
                      * **\\*args, \\*\\*kwargs** -- Variable length argument list and arbitrary keyword arguments.
         """
     ), (
@@ -1362,6 +1362,80 @@ param1 : MyClass instance
 :type param1: :class:`MyClass instance`
 """
         self.assertEqual(expected, actual)
+
+    def test_parameters_multi_name_optional_use_param_true(self):
+        docstring = """\
+Parameters
+----------
+x1, x2 : array_like, optional
+    Input arrays.
+"""
+
+        config = Config(napoleon_use_param=True)
+        actual = str(NumpyDocstring(docstring, config))
+        expected = """\
+:param x1, x2: Input arrays.
+:type x1, x2: :class:`array_like`, *optional*
+"""
+        self.assertEqual(expected, actual)
+
+        for raw_name in ("x1,x2", "x1,  x2"):
+            variant = f"""\
+Parameters
+----------
+{raw_name} : array_like, optional
+    Input arrays.
+"""
+            actual = str(NumpyDocstring(variant, config))
+            self.assertEqual(expected, actual)
+
+    def test_parameters_multi_name_optional_use_param_false(self):
+        docstring = """\
+Parameters
+----------
+x1, x2 : array_like, optional
+    Input arrays.
+"""
+
+        config = Config(napoleon_use_param=False)
+        actual = str(NumpyDocstring(docstring, config))
+        expected = """\
+:Parameters: **x1, x2** (:class:`array_like`, *optional*) -- Input arrays.
+"""
+        self.assertEqual(expected, actual)
+
+        for raw_name in ("x1,x2", "x1,  x2"):
+            variant = f"""\
+Parameters
+----------
+{raw_name} : array_like, optional
+    Input arrays.
+"""
+            actual = str(NumpyDocstring(variant, config))
+            self.assertEqual(expected, actual)
+
+    def test_parameters_multi_name_without_optional(self):
+        docstring = """\
+Parameters
+----------
+x1, x2 : array_like
+    Input arrays.
+"""
+
+        expected_param = """\
+:param x1, x2: Input arrays.
+:type x1, x2: :class:`array_like`
+"""
+        config = Config(napoleon_use_param=True)
+        actual = str(NumpyDocstring(docstring, config))
+        self.assertEqual(expected_param, actual)
+
+        config = Config(napoleon_use_param=False)
+        actual = str(NumpyDocstring(docstring, config))
+        expected_list = """\
+:Parameters: **x1, x2** (:class:`array_like`) -- Input arrays.
+"""
+        self.assertEqual(expected_list, actual)
 
     def test_see_also_refs(self):
         docstring = """\
