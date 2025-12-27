@@ -1030,6 +1030,15 @@ def test_autodoc_classmethod(app):
     ]
 
 
+@pytest.mark.sphinx('html', testroot='autodoc-mocked-bases')
+def test_autodoc_mocked_bases_rendering(app):
+    options = {'show-inheritance': None}
+
+    actual = do_autodoc(app, 'class', 'mocked.ModuleSubclass', options)
+
+    assert '   Bases: :py:class:`torch.nn.Module`' in list(actual)
+
+
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_autodoc_staticmethod(app):
     actual = do_autodoc(app, 'method', 'target.inheritance.Base.inheritedstaticmeth')

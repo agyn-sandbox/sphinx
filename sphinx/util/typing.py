@@ -74,10 +74,10 @@ Inventory = Dict[str, Dict[str, Tuple[str, str, str, str]]]
 
 
 def get_type_hints(obj: Any, globalns: Dict = None, localns: Dict = None) -> Dict[str, Any]:
-    """Return a dictionary containing type hints for a function, method, module or class object.
+    """Return collected type hints for a callable, module, or class.
 
-    This is a simple wrapper of `typing.get_type_hints()` that does not raise an error on
-    runtime.
+    This is a simple wrapper of ``typing.get_type_hints()`` that does not raise an error
+    at runtime.
     """
     from sphinx.util.inspect import safe_getattr  # lazy loading
 
@@ -192,10 +192,40 @@ def _restify_py37(cls: Optional[Type]) -> str:
     elif isinstance(cls, typing._SpecialForm):
         return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
     elif hasattr(cls, '__qualname__'):
-        if cls.__module__ == 'typing':
-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-        else:
-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
+        module = getattr(cls, '__module__', None)
+
+        def _normalized(value: Any) -> Optional[str]:
+            if value is None:
+                return None
+            text = value if isinstance(value, str) else str(value)
+            text = text.strip()
+            if not text:
+                return None
+            if module and text.startswith(module + '.'):
+                text = text[len(module) + 1:]
+            if text.endswith('.__name__'):
+                text = text[: -len('.__name__')]
+            elif text.endswith('.__qualname__'):
+                text = text[: -len('.__qualname__')]
+            return text
+
+        qualname = _normalized(getattr(cls, '__qualname__', None))
+        if not qualname:
+            qualname = _normalized(getattr(cls, '__name__', None))
+
+        if qualname:
+            if module == 'typing':
+                return ':py:class:`~%s.%s`' % (module, qualname)
+            elif module:
+                return ':py:class:`%s.%s`' % (module, qualname)
+            else:
+                return ':py:class:`%s`' % qualname
+        fallback = _normalized(getattr(cls, '__name__', None))
+        if fallback:
+            if module:
+                return ':py:class:`%s.%s`' % (module, fallback)
+            return ':py:class:`%s`' % fallback
+        return repr(cls)
     elif isinstance(cls, ForwardRef):
         return ':py:class:`%s`' % cls.__forward_arg__
     else:
@@ -208,19 +238,58 @@ def _restify_py37(cls: Optional[Type]) -> str:
 
 def _restify_py36(cls: Optional[Type]) -> str:
     module = getattr(cls, '__module__', None)
+
+    def _normalized(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        text = value if isinstance(value, str) else str(value)
+        text = text.strip()
+        if not text:
+            return None
+        if module and text.startswith(module + '.'):
+            text = text[len(module) + 1:]
+        if text.endswith('.__name__'):
+            text = text[: -len('.__name__')]
+        elif text.endswith('.__qualname__'):
+            text = text[: -len('.__qualname__')]
+        return text
+
     if module == 'typing':
         if getattr(cls, '_name', None):
             qualname = cls._name
-        elif getattr(cls, '__qualname__', None):
-            qualname = cls.__qualname__
-        elif getattr(cls, '__forward_arg__', None):
-            qualname = cls.__forward_arg__
-        elif getattr(cls, '__origin__', None):
-            qualname = stringify(cls.__origin__)  # ex. Union
         else:
-            qualname = repr(cls).replace('typing.', '')
+            qualname = _normalized(getattr(cls, '__qualname__', None))
+            if not qualname:
+                qualname = _normalized(getattr(cls, '__name__', None))
+
+            if not qualname and getattr(cls, '__forward_arg__', None):
+                qualname = cls.__forward_arg__
+            elif not qualname and getattr(cls, '__origin__', None):
+                qualname = stringify(cls.__origin__)  # ex. Union
+            elif not qualname:
+                qualname = repr(cls).replace('typing.', '')
     elif hasattr(cls, '__qualname__'):
-        qualname = '%s.%s' % (module, cls.__qualname__)
+        qual = _normalized(getattr(cls, '__qualname__', None))
+        if qual:
+            qualname = '%s.%s' % (module, qual) if module else qual
+        else:
+            fallback = _normalized(getattr(cls, '__name__', None))
+            if fallback:
+                qualname = '%s.%s' % (module, fallback) if module else fallback
+            else:
+                qualname = repr(cls)
+    elif getattr(cls, '__forward_arg__', None):
+        qualname = cls.__forward_arg__
+    elif getattr(cls, '__origin__', None):
+        qualname = stringify(cls.__origin__)
+    elif hasattr(cls, '_name') and getattr(cls, '_name'):
+        qualname = getattr(cls, '_name')
+    elif hasattr(cls, '__name__'):
+        qual = _normalized(getattr(cls, '__name__', None))
+        if qual:
+            qualname = '%s.%s' % (module, qual) if module else qual
+        else:
+            qualname = repr(cls)
     else:
         qualname = repr(cls)
 
@@ -274,10 +343,25 @@ def _restify_py36(cls: Optional[Type]) -> str:
         else:
             return ':py:obj:`Union`'
     elif hasattr(cls, '__qualname__'):
-        if cls.__module__ == 'typing':
-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
-        else:
-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
+        qual = _normalized(getattr(cls, '__qualname__', None))
+        if not qual:
+            qual = _normalized(getattr(cls, '__name__', None))
+
+        if qual:
+            if module == 'typing':
+                return ':py:class:`~%s.%s`' % (module, qual)
+            elif module:
+                return ':py:class:`%s.%s`' % (module, qual)
+            else:
+                return ':py:class:`%s`' % qual
+
+        fallback = _normalized(getattr(cls, '__name__', None))
+        if fallback:
+            if module:
+                return ':py:class:`%s.%s`' % (module, fallback)
+            return ':py:class:`%s`' % fallback
+
+        return repr(cls)
     elif hasattr(cls, '_name'):
         # SpecialForm
         if cls.__module__ == 'typing':

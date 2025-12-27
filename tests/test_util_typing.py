@@ -9,6 +9,7 @@
 """
 
 import sys
+import typing
 from numbers import Integral
 from struct import Struct
 from types import TracebackType
@@ -17,7 +18,7 @@ from typing import (Any, Callable, Dict, Generator, List, NewType, Optional, Tup
 
 import pytest
 
-from sphinx.util.typing import restify, stringify
+from sphinx.util.typing import _restify_py36, restify, stringify
 
 
 class MyClass1:
@@ -127,6 +128,39 @@ def test_restify_type_hints_typevars():
 def test_restify_type_hints_custom_class():
     assert restify(MyClass1) == ":py:class:`tests.test_util_typing.MyClass1`"
     assert restify(MyClass2) == ":py:class:`tests.test_util_typing.<MyClass2>`"
+
+
+def test_restify_mocked_class_falls_back_to_name():
+    class MockModule:
+        pass
+
+    MockModule.__module__ = 'torch.nn'
+    MockModule.__name__ = 'Module'
+    MockModule.__qualname__ = ''
+
+    assert restify(MockModule) == ":py:class:`torch.nn.Module`"
+
+    MockModule.__qualname__ = 'Module'
+    assert restify(MockModule) == ":py:class:`torch.nn.Module`"
+
+
+def test_restify_py36_mocked_class_falls_back_to_name(monkeypatch):
+    if not hasattr(typing, 'TupleMeta'):
+        monkeypatch.setattr(typing, 'TupleMeta', type('TupleMeta', (type,), {}), raising=False)
+    if not hasattr(typing, 'GenericMeta'):
+        monkeypatch.setattr(typing, 'GenericMeta', type('GenericMeta', (type,), {}), raising=False)
+
+    class MockModule:
+        pass
+
+    MockModule.__module__ = 'torch.nn'
+    MockModule.__name__ = 'Module'
+    MockModule.__qualname__ = ''
+
+    assert _restify_py36(MockModule) == ":py:class:`torch.nn.Module`"
+
+    MockModule.__qualname__ = 'Module'
+    assert _restify_py36(MockModule) == ":py:class:`torch.nn.Module`"
 
 
 def test_restify_type_hints_alias():
