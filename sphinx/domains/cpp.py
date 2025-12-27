@@ -300,6 +300,7 @@ T = TypeVar('T')
 _string_re = re.compile(r"[LuU8]?('([^'\\]*(?:\\.[^'\\]*)*)'"
                         r'|"([^"\\]*(?:\\.[^"\\]*)*)")', re.S)
 _udl_suffix_re = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_int_suffix_re = re.compile(r"(?:[uU](?:[lL]{1,2})?|(?:[lL]{1,2})[uU]?)")
 _visibility_re = re.compile(r'\b(public|private|protected)\b')
 _operator_re = re.compile(r'''(?x)
         \[\s*\]
@@ -4664,10 +4665,18 @@ class DefinitionParser(BaseParser):
                       integer_literal_re, octal_literal_re]:
             pos = self.pos
             if self.match(regex):
-                suffix_start = self.pos
-                while self.current_char in 'uUlLfF':
-                    self.pos += 1
-                if self.pos == suffix_start:
+                consumed_builtin = False
+                if regex is float_literal_re:
+                    if not self.eof and self.current_char in 'fFlL':
+                        consumed_builtin = True
+                        self.pos += 1
+                else:
+                    if not self.eof:
+                        builtin_match = _int_suffix_re.match(self.definition, self.pos)
+                        if builtin_match:
+                            self.pos = builtin_match.end()
+                            consumed_builtin = True
+                if (not consumed_builtin) and (not self.eof):
                     if self.current_char == '_':
                         next_char = self.definition[self.pos + 1:self.pos + 2]
                         if next_char and (next_char.isalpha() or next_char == '_'):
