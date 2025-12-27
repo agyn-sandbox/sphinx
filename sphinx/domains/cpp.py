@@ -298,6 +298,7 @@ T = TypeVar('T')
 
 _string_re = re.compile(r"[LuU8]?('([^'\\]*(?:\\.[^'\\]*)*)'"
                         r'|"([^"\\]*(?:\\.[^"\\]*)*)")', re.S)
+_udl_suffix_re = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _visibility_re = re.compile(r'\b(public|private|protected)\b')
 _operator_re = re.compile(r'''(?x)
         \[\s*\]
@@ -4662,8 +4663,11 @@ class DefinitionParser(BaseParser):
                       integer_literal_re, octal_literal_re]:
             pos = self.pos
             if self.match(regex):
+                suffix_start = self.pos
                 while self.current_char in 'uUlLfF':
                     self.pos += 1
+                if self.pos == suffix_start:
+                    self.match(_udl_suffix_re)
                 return ASTNumberLiteral(self.definition[pos:self.pos])
 
         string = self._parse_string()
