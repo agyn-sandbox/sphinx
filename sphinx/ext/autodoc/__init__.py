@@ -15,7 +15,15 @@ import warnings
 from inspect import Parameter, Signature
 from types import ModuleType
 from typing import (TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Sequence,
-                    Set, Tuple, Type, TypeAlias, TypeVar, Union)
+                    Set, Tuple, Type, TypeVar, Union)
+
+try:  # Python 3.10+
+    from typing import TypeAlias  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - unavailable on older runtimes
+    try:  # Fallback for environments providing typing_extensions
+        from typing_extensions import TypeAlias  # type: ignore
+    except ImportError:  # pragma: no cover - typing_extensions not installed
+        TypeAlias = None  # type: ignore[assignment]
 
 try:  # Python 3.12+
     from typing import TypeAliasType  # type: ignore[attr-defined]
