@@ -85,6 +85,50 @@ def test_automodule_undoc_members(app):
     ]
 
 
+@pytest.mark.sphinx('html', testroot='ext-autodoc',
+                    confoverrides={'autodoc_typehints': 'description'})
+def test_type_alias_docstrings(app):
+    options = {'members': None, 'undoc-members': None}
+    actual = do_autodoc(app, 'module', 'target.type_alias_docstrings', options)
+    assert list(actual) == [
+        '',
+        '.. py:module:: target.type_alias_docstrings',
+        '',
+        '',
+        '.. py:attribute:: AliasWithoutDoc',
+        '   :module: target.type_alias_docstrings',
+        '',
+        '   alias of :class:`target.type_alias_docstrings._Aliased`',
+        '',
+        '.. py:data:: IntListOrUnion',
+        '   :module: target.type_alias_docstrings',
+        '',
+        '   Docstring for IntListOrUnion.',
+        '',
+        '   alias of :obj:`~typing.Union`\\ [:class:`~typing.List`\\ [:class:`int`], :class:`int`]',
+        '',
+        '',
+        '.. py:data:: MyInt',
+        '   :module: target.type_alias_docstrings',
+        '   :type: TypeAlias',
+        "   :value: <class 'int'>",
+        '',
+        '   Docstring for MyInt.',
+        '',
+        '   alias of :class:`int`',
+        '',
+        '',
+        '.. py:data:: SimpleInt',
+        '   :module: target.type_alias_docstrings',
+        "   :value: <class 'int'>",
+        '',
+        '   Docstring for SimpleInt.',
+        '',
+        '   alias of :class:`int`',
+        '',
+    ]
+
+
 @pytest.mark.sphinx('html', testroot='ext-autodoc')
 def test_automodule_special_members(app):
     options = {'members': None,

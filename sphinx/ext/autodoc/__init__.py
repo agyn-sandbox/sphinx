@@ -17,6 +17,24 @@ from types import ModuleType
 from typing import (TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Sequence,
                     Set, Tuple, Type, TypeVar, Union)
 
+try:  # Python 3.10+
+    from typing import TypeAlias  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - unavailable on older runtimes
+    try:  # Fallback for environments providing typing_extensions
+        from typing_extensions import TypeAlias  # type: ignore
+    except ImportError:  # pragma: no cover - typing_extensions not installed
+        TypeAlias = None  # type: ignore[assignment]
+
+try:  # Python 3.12+
+    from typing import TypeAliasType  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - unavailable on older runtimes
+    TypeAliasType = None  # type: ignore[assignment]
+
+try:  # Fallback for environments providing typing_extensions
+    from typing_extensions import TypeAliasType as ExtTypeAliasType  # type: ignore
+except ImportError:  # pragma: no cover - typing_extensions not installed
+    ExtTypeAliasType = None  # type: ignore[assignment]
+
 from docutils.statemachine import StringList
 
 import sphinx
@@ -86,6 +104,7 @@ EMPTY = _Empty()
 UNINITIALIZED_ATTR = object()
 INSTANCEATTR = object()
 SLOTSATTR = object()
+TYPE_ALIAS_STRINGS = {'TypeAlias', 'typing.TypeAlias', 'typing_extensions.TypeAlias'}
 
 
 def members_option(arg: Any) -> Union[object, List[str]]:
@@ -842,12 +861,13 @@ class Documenter:
             if not classes:
                 # don't know how to document this member
                 continue
-            # prefer the documenter with the highest priority
-            classes.sort(key=lambda cls: cls.priority)
+            documenter_class = self.select_member_documenter(classes, member, mname, isattr)
+            if not documenter_class:
+                continue
             # give explicitly separated module name, so that members
             # of inner classes can be documented
             full_mname = self.modname + '::' + '.'.join(self.objpath + [mname])
-            documenter = classes[-1](self.directive, full_mname, self.indent)
+            documenter = documenter_class(self.directive, full_mname, self.indent)
             memberdocumenters.append((documenter, isattr))
 
         member_order = self.options.member_order or self.config.autodoc_member_order
@@ -886,6 +906,16 @@ class Documenter:
             documenters.sort(key=lambda e: e[0].name)
 
         return documenters
+
+    def select_member_documenter(self, documenters: List[Type["Documenter"]],
+                                 member: Any, membername: str, isattr: bool
+                                 ) -> Optional[Type["Documenter"]]:
+        """Pick the documenter class responsible for a member."""
+        documenters.sort(key=lambda cls: cls.priority)
+        if documenters:
+            return documenters[-1]
+        else:
+            return None
 
     def generate(self, more_content: Optional[StringList] = None, real_modname: str = None,
                  check_module: bool = False, all_members: bool = False) -> None:
@@ -998,6 +1028,7 @@ class ModuleDocumenter(Documenter):
         super().__init__(*args)
         merge_members_option(self.options)
         self.__all__: Optional[Sequence[str]] = None
+        self._module_annotations_cache: Optional[Dict[str, Any]] = None
 
     @classmethod
     def can_document_member(cls, member: Any, membername: str, isattr: bool, parent: Any
@@ -1099,6 +1130,95 @@ class ModuleDocumenter(Documenter):
                                    (safe_getattr(self.object, '__name__', '???'), name),
                                    type='autodoc')
             return False, ret
+
+    def select_member_documenter(self, documenters: List[Type["Documenter"]],
+                                 member: Any, membername: str, isattr: bool
+                                 ) -> Optional[Type["Documenter"]]:
+        documenters.sort(key=lambda cls: cls.priority)
+        preferred = self._prefer_data_documenter(documenters, member, membername, isattr)
+        if preferred:
+            return preferred
+        elif documenters:
+            return documenters[-1]
+        else:
+            return None
+
+    def _prefer_data_documenter(self, documenters: List[Type["Documenter"]], member: Any,
+                                membername: str, isattr: bool) -> Optional[Type["Documenter"]]:
+        if not isattr:
+            return None
+
+        data_documenter = None
+        for candidate in documenters:
+            if issubclass(candidate, DataDocumenter):
+                data_documenter = candidate
+
+        if not data_documenter:
+            return None
+        if not isinstance(member, type):
+            return None
+
+        member_type_name = getattr(member, '__name__', None)
+        if not member_type_name or member_type_name == membername:
+            return None
+
+        if self._has_module_attribute_doc(membername):
+            return data_documenter
+
+        if self._annotation_is_type_alias(membername):
+            return data_documenter
+
+        return None
+
+    def _has_module_attribute_doc(self, membername: str) -> bool:
+        if not self.analyzer:
+            return False
+
+        doc = self.analyzer.attr_docs.get(('', membername))
+        if not doc:
+            return False
+
+        return any(line.strip() for line in doc)
+
+    def _annotation_is_type_alias(self, membername: str) -> bool:
+        annotations = self._get_module_annotations()
+        if not annotations:
+            return False
+
+        annotation = annotations.get(membername)
+        if annotation is None:
+            return False
+
+        if TypeAlias is not None and annotation is TypeAlias:
+            return True
+
+        alias_types = tuple(alias for alias in (TypeAliasType, ExtTypeAliasType) if alias)
+        if alias_types and isinstance(annotation, alias_types):
+            return True
+
+        if isinstance(annotation, str):
+            target = annotation.strip()
+            if target in TYPE_ALIAS_STRINGS or target.split('.')[-1] == 'TypeAlias':
+                return True
+
+        annotation_class = getattr(annotation, '__class__', None)
+        if annotation_class and annotation_class.__name__ == 'TypeAliasType':
+            return True
+
+        return False
+
+    def _get_module_annotations(self) -> Dict[str, Any]:
+        if self._module_annotations_cache is None:
+            try:
+                annotations = inspect.getannotations(self.object)
+            except Exception:
+                annotations = {}
+            else:
+                annotations = dict(annotations)
+
+            self._module_annotations_cache = annotations
+
+        return self._module_annotations_cache
 
     def sort_members(self, documenters: List[Tuple["Documenter", bool]],
                      order: str) -> List[Tuple["Documenter", bool]]:
@@ -1723,18 +1843,43 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type: 
 
     def add_content(self, more_content: Optional[StringList], no_docstring: bool = False
                     ) -> None:
+        alias_analyzer: Optional[ModuleAnalyzer] = None
+        original_analyzer: Optional[ModuleAnalyzer] = None
+
         if self.doc_as_attr:
+            original_analyzer = self.analyzer
+            alias_analyzer = self._load_alias_module_analyzer()
+            if alias_analyzer:
+                self.analyzer = alias_analyzer
+
+            alias_content = StringList()
             try:
-                more_content = StringList([_('alias of %s') % restify(self.object)], source='')
+                alias_content.append(_('alias of %s') % restify(self.object), '')
             except AttributeError:
                 pass  # Invalid class object is passed.
 
-        super().add_content(more_content)
+            if more_content:
+                alias_content.extend(more_content)
+            more_content = alias_content
+
+        try:
+            super().add_content(more_content)
+        finally:
+            if alias_analyzer is not None:
+                self.analyzer = original_analyzer
 
     def document_members(self, all_members: bool = False) -> None:
         if self.doc_as_attr:
             return
         super().document_members(all_members)
+
+    def _load_alias_module_analyzer(self) -> Optional[ModuleAnalyzer]:
+        try:
+            analyzer = ModuleAnalyzer.for_module(self.modname)
+            analyzer.analyze()
+            return analyzer
+        except PycodeError:
+            return None
 
     def generate(self, more_content: Optional[StringList] = None, real_modname: str = None,
                  check_module: bool = False, all_members: bool = False) -> None:
@@ -1810,12 +1955,15 @@ class NewTypeMixin(DataDocumenterMixinBase):
     supporting NewTypes.
     """
 
+    def _is_new_type(self) -> bool:
+        return inspect.isNewType(self.object) or hasattr(self.object, '__supertype__')
+
     def should_suppress_directive_header(self) -> bool:
-        return (inspect.isNewType(self.object) or
+        return (self._is_new_type() or
                 super().should_suppress_directive_header())
 
     def update_content(self, more_content: StringList) -> None:
-        if inspect.isNewType(self.object):
+        if self._is_new_type():
             supertype = restify(self.object.__supertype__)
             more_content.append(_('alias of %s') % supertype, '')
             more_content.append('', '')
@@ -1943,6 +2091,13 @@ class DataDocumenter(GenericAliasMixin, NewTypeMixin, TypeVarMixin,
             self.update_annotations(self.parent)
 
         return ret
+
+    def update_content(self, more_content: StringList) -> None:
+        super().update_content(more_content)
+
+        if inspect.isclass(self.object):
+            more_content.append(_('alias of %s') % restify(self.object), '')
+            more_content.append('', '')
 
     def should_suppress_value_header(self) -> bool:
         if super().should_suppress_value_header():
