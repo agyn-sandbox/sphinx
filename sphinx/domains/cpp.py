@@ -10,7 +10,7 @@
 
 import re
 from typing import (
-    Any, Callable, Dict, Generator, Iterator, List, Tuple, Type, TypeVar, Union, Optional
+    Any, Callable, Dict, Generator, Iterator, List, Tuple, TypeVar, Union, Optional
 )
 
 from docutils import nodes
@@ -4667,7 +4667,12 @@ class DefinitionParser(BaseParser):
                 while self.current_char in 'uUlLfF':
                     self.pos += 1
                 if self.pos == suffix_start:
-                    self.match(_udl_suffix_re)
+                    if self.current_char == '_':
+                        next_char = self.definition[self.pos + 1:self.pos + 2]
+                        if next_char and (next_char.isalpha() or next_char == '_'):
+                            self.match(_udl_suffix_re)
+                    elif self.current_char.isalpha():
+                        self.match(_udl_suffix_re)
                 return ASTNumberLiteral(self.definition[pos:self.pos])
 
         string = self._parse_string()

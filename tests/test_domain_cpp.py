@@ -921,6 +921,20 @@ def test_build_domain_cpp_semicolon(app, status, warning):
     assert len(ws) == 0
 
 
+@pytest.mark.sphinx(testroot='domain-cpp', confoverrides={'nitpicky': True}, freshenv=True)
+def test_build_domain_cpp_udl_numeric(app, status, warning):
+    app.builder.build_all()
+    ws = filter_warnings(warning, "udl-numeric")
+    assert len(ws) == 0
+
+
+@pytest.mark.sphinx(testroot='domain-cpp', confoverrides={'nitpicky': True}, freshenv=True)
+def test_build_domain_cpp_udl_negative(app, status, warning):
+    app.builder.build_all()
+    ws = filter_warnings(warning, "udl-negative")
+    assert len(ws) == 4
+
+
 @pytest.mark.sphinx(testroot='domain-cpp',
                     confoverrides={'nitpicky': True, 'strip_signature_backslash': True})
 def test_build_domain_cpp_backslash_ok(app, status, warning):
