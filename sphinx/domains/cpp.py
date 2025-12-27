@@ -4676,13 +4676,10 @@ class DefinitionParser(BaseParser):
                         if builtin_match:
                             self.pos = builtin_match.end()
                             consumed_builtin = True
-                if (not consumed_builtin) and (not self.eof):
-                    if self.current_char == '_':
-                        next_char = self.definition[self.pos + 1:self.pos + 2]
-                        if next_char and (next_char.isalpha() or next_char == '_'):
-                            self.match(_udl_suffix_re)
-                    elif self.current_char.isalpha():
-                        self.match(_udl_suffix_re)
+                if not consumed_builtin:
+                    udl_match = _udl_suffix_re.match(self.definition, self.pos)
+                    if udl_match:
+                        self.pos = udl_match.end()
                 return ASTNumberLiteral(self.definition[pos:self.pos])
 
         string = self._parse_string()

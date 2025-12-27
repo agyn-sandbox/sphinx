@@ -17,6 +17,10 @@ Numeric user-defined literals
 
 .. cpp:var:: constexpr auto iu2 = 10Funit
 
+.. cpp:var:: constexpr auto udl_digit_float = 1e-34_1q
+
+.. cpp:var:: constexpr auto udl_digit_int = 42_1q
+
 .. cpp:namespace:: units::si
 
 .. cpp:var:: inline constexpr auto planck_constant = 6.62607015e-34q_J * 1q_s
