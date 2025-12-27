@@ -10,7 +10,8 @@
 
 import re
 from typing import (
-    Any, Callable, Dict, Generator, Iterator, List, Tuple, TypeVar, Union, Optional
+    Any, Callable, Dict, Generator, Iterator, List, Tuple, Type, TypeVar, Union, Optional,
+    cast
 )
 
 from docutils import nodes
@@ -6923,7 +6924,7 @@ class CPPExprRole(SphinxRole):
         if asCode:
             # render the expression as inline code
             self.class_type = 'cpp-expr'
-            self.node_type = nodes.literal  # type: Type[TextElement]
+            self.node_type = cast(Type[TextElement], nodes.literal)
         else:
             # render the expression as inline text
             self.class_type = 'cpp-texpr'
