@@ -188,6 +188,46 @@ def test_glossary_warning(app, status, warning):
             "other instance in case4" in warning.getvalue())
 
 
+def test_glossary_duplicate_case_only_suppressed(app, status, warning):
+    text = (".. glossary::\n"
+            "\n"
+            "   Term\n"
+            "   term\n")
+    domain = app.env.get_domain('std')
+    docname = "case-insensitive"
+    restructuredtext.parse(app, text, docname)
+    assert "duplicate term description" not in warning.getvalue()
+    assert ('term', 'term') in domain.objects
+    assert domain.objects[('term', 'term')][0] == docname
+    assert domain.term_originals[docname]['term'] == {'Term', 'term'}
+
+
+def test_glossary_duplicate_exact_case_warns(app, status, warning):
+    text = (".. glossary::\n"
+            "\n"
+            "   Term\n"
+            "   Term\n")
+    restructuredtext.parse(app, text, "case-sensitive")
+    assert ("case-sensitive.rst:3: WARNING: duplicate term description of Term, "
+            "other instance in case-sensitive" in warning.getvalue())
+
+
+@pytest.mark.sphinx(confoverrides={'glossary_terms_case_sensitive': True})
+def test_glossary_case_sensitive_mode_distinguishes_terms(app, status, warning):
+    text = (".. glossary::\n"
+            "\n"
+            "   Term\n"
+            "   term\n")
+    domain = app.env.get_domain('std')
+    docname = "case-mode"
+    restructuredtext.parse(app, text, docname)
+    warnings_text = warning.getvalue()
+    assert "duplicate term description" not in warnings_text
+    assert ('term', 'Term') in domain.objects
+    assert ('term', 'term') in domain.objects
+    assert domain.objects[('term', 'Term')][1] != domain.objects[('term', 'term')][1]
+
+
 def test_glossary_comment(app):
     text = (".. glossary::\n"
             "\n"

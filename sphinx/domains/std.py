@@ -12,7 +12,19 @@ import re
 import unicodedata
 import warnings
 from copy import copy
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 from typing import cast
 
 from docutils import nodes
@@ -34,7 +46,6 @@ from sphinx.util.typing import RoleFunction
 
 if False:
     # For type annotation
-    from typing import Type  # for python3.5.1
     from sphinx.application import Sphinx
     from sphinx.builders import Builder
     from sphinx.environment import BuildEnvironment
@@ -53,7 +64,9 @@ class GenericObject(ObjectDescription):
     A generic x-ref directive registered with Sphinx.add_object_type().
     """
     indextemplate = ''
-    parse_node = None  # type: Callable[[GenericObject, BuildEnvironment, str, desc_signature], str]  # NOQA
+    parse_node: Optional[
+        Callable[["GenericObject", "BuildEnvironment", str, desc_signature], str]
+    ] = None
 
     def handle_signature(self, sig: str, signode: desc_signature) -> str:
         if self.parse_node:
@@ -305,7 +318,7 @@ def make_glossary_term(env: "BuildEnvironment", textnodes: Iterable[Node], index
         term['ids'].append(node_id)
 
     std = cast(StandardDomain, env.get_domain('std'))
-    std.note_object('term', termtext.lower(), node_id, location=term)
+    std.note_term(termtext, node_id, location=term)
 
     # add an index entry too
     indexnode = addnodes.index()
@@ -551,15 +564,15 @@ class StandardDomain(Domain):
         'doc': ObjType(_('document'), 'doc', searchprio=-1)
     }  # type: Dict[str, ObjType]
 
-    directives = {
+    directives: Dict[str, Type[Directive]] = {
         'program': Program,
         'cmdoption': Cmdoption,  # old name for backwards compatibility
         'option': Cmdoption,
         'envvar': EnvVar,
         'glossary': Glossary,
         'productionlist': ProductionList,
-    }  # type: Dict[str, Type[Directive]]
-    roles = {
+    }
+    roles: Dict[str, Union[RoleFunction, XRefRole]] = {
         'option':  OptionXRefRole(warn_dangling=True),
         'envvar':  EnvVarXRefRole(),
         # links to tokens in grammar productions
@@ -577,7 +590,7 @@ class StandardDomain(Domain):
         'keyword': XRefRole(warn_dangling=True),
         # links to documents
         'doc':     XRefRole(warn_dangling=True, innernodeclass=nodes.inline),
-    }  # type: Dict[str, Union[RoleFunction, XRefRole]]
+    }
 
     initial_data = {
         'progoptions': {},      # (program, name) -> docname, labelid
@@ -592,6 +605,7 @@ class StandardDomain(Domain):
             'modindex': ('py-modindex', ''),
             'search':   ('search', ''),
         },
+        'term_originals': {},
     }
 
     dangling_warnings = {
@@ -613,10 +627,17 @@ class StandardDomain(Domain):
     def __init__(self, env: "BuildEnvironment") -> None:
         super().__init__(env)
 
+        self._ensure_term_role_mode()
+
         # set up enumerable nodes
         self.enumerable_nodes = copy(self.enumerable_nodes)  # create a copy for this instance
         for node, settings in env.app.registry.enumerable_nodes.items():
             self.enumerable_nodes[node] = settings
+
+    def role(self, name: str) -> RoleFunction:
+        if name == 'term':
+            self._ensure_term_role_mode()
+        return super().role(name)
 
     def note_hyperlink_target(self, name: str, docname: str, node_id: str,
                               title: str = '') -> None:
@@ -675,6 +696,62 @@ class StandardDomain(Domain):
     def anonlabels(self) -> Dict[str, Tuple[str, str]]:
         return self.data.setdefault('anonlabels', {})  # labelname -> docname, labelid
 
+    @property
+    def term_originals(self) -> Dict[str, Dict[str, Set[str]]]:
+        return self.data.setdefault('term_originals', {})
+
+    def _is_term_case_sensitive(self) -> bool:
+        config = self.env.config
+        if config is None:
+            return False
+        return getattr(config, 'glossary_terms_case_sensitive', False) is True
+
+    def _ensure_term_role_mode(self) -> None:
+        term_role = self.roles.get('term')
+        if not isinstance(term_role, XRefRole):
+            return
+
+        expected_lowercase = not self._is_term_case_sensitive()
+        if term_role.lowercase != expected_lowercase:
+            cloned_role = copy(term_role)
+            cloned_role.lowercase = expected_lowercase
+            self.roles['term'] = cloned_role
+            self._role_cache.pop('term', None)
+
+    def _normalize_term_name(self, name: str) -> str:
+        self._ensure_term_role_mode()
+        return name if self._is_term_case_sensitive() else name.lower()
+
+    def _term_has_exact_case(self, normalized: str, original: str) -> bool:
+        for per_doc in self.term_originals.values():
+            originals = per_doc.get(normalized)
+            if originals and original in originals:
+                return True
+        return False
+
+    def note_term(self, name: str, labelid: str, location: Any = None) -> None:
+        normalized = self._normalize_term_name(name)
+        key = ('term', normalized)
+
+        warn_duplicate = False
+        other_doc = None
+        if key in self.objects:
+            other_doc = self.objects[key][0]
+            if self._is_term_case_sensitive():
+                warn_duplicate = True
+            elif self._term_has_exact_case(normalized, name):
+                warn_duplicate = True
+
+        if warn_duplicate:
+            logger.warning(__('duplicate term description of %s, other instance in %s'),
+                           name, other_doc, location=location)
+
+        self.objects[key] = (self.env.docname, labelid)
+
+        per_doc = self.term_originals.setdefault(self.env.docname, {})
+        originals = per_doc.setdefault(normalized, set())
+        originals.add(name)
+
     def clear_doc(self, docname: str) -> None:
         key = None  # type: Any
         for key, (fn, _l) in list(self.progoptions.items()):
@@ -690,6 +767,8 @@ class StandardDomain(Domain):
             if fn == docname:
                 del self.anonlabels[key]
 
+        self.term_originals.pop(docname, None)
+
     def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
         # XXX duplicates?
         for key, data in otherdata['progoptions'].items():
@@ -704,6 +783,14 @@ class StandardDomain(Domain):
         for key, data in otherdata['anonlabels'].items():
             if data[0] in docnames:
                 self.anonlabels[key] = data
+
+        for docname in docnames:
+            originals = otherdata.get('term_originals', {}).get(docname)
+            if originals is not None:
+                self.term_originals[docname] = {
+                    norm: set(variants)
+                    for norm, variants in originals.items()
+                }
 
     def process_doc(self, env: "BuildEnvironment", docname: str, document: nodes.document) -> None:  # NOQA
         for name, explicit in document.nametypes.items():
@@ -928,8 +1015,11 @@ class StandardDomain(Domain):
                           node: pending_xref, contnode: Element) -> Element:
         objtypes = self.objtypes_for_role(typ) or []
         for objtype in objtypes:
-            if (objtype, target) in self.objects:
-                docname, labelid = self.objects[objtype, target]
+            lookup = target
+            if objtype == 'term':
+                lookup = self._normalize_term_name(target)
+            if (objtype, lookup) in self.objects:
+                docname, labelid = self.objects[objtype, lookup]
                 break
         else:
             docname, labelid = '', ''
@@ -951,9 +1041,10 @@ class StandardDomain(Domain):
                 results.append(('std:' + role, res))
         # all others
         for objtype in self.object_types:
-            key = (objtype, target)
+            lookup = target
             if objtype == 'term':
-                key = (objtype, ltarget)
+                lookup = self._normalize_term_name(target)
+            key = (objtype, lookup)
             if key in self.objects:
                 docname, labelid = self.objects[key]
                 results.append(('std:' + self.role_for_objtype(objtype),

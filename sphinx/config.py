@@ -15,7 +15,7 @@ import warnings
 from collections import OrderedDict
 from os import path, getenv
 from typing import (
-    Any, Callable, Dict, Generator, Iterator, List, NamedTuple, Set, Tuple, Union
+    Any, Callable, Dict, Generator, Iterator, List, NamedTuple, Optional, Set, Tuple, Union
 )
 
 from sphinx.deprecation import RemovedInSphinx40Warning
@@ -137,6 +137,7 @@ class Config:
         'manpages_url': (None, 'env', []),
         'nitpicky': (False, None, []),
         'nitpick_ignore': ([], None, []),
+        'glossary_terms_case_sensitive': (False, 'env', []),
         'numfig': (False, 'env', []),
         'numfig_secnum_depth': (1, 'env', []),
         'numfig_format': ({}, 'env', []),  # will be initialized in init_numfig_format()
@@ -158,7 +159,7 @@ class Config:
         self.overrides = dict(overrides)
         self.values = Config.config_values.copy()
         self._raw_config = config
-        self.setup = config.get('setup', None)  # type: Callable
+        self.setup: Optional[Callable[..., Any]] = config.get('setup', None)
 
         if 'extensions' in self.overrides:
             if isinstance(self.overrides['extensions'], str):
