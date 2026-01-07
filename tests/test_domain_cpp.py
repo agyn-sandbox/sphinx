@@ -810,6 +810,65 @@ def test_initializers():
     check('member', 'T v = T{}', idsMember)
 
 
+def test_user_defined_literal_expressions():
+    class Config:
+        cpp_id_attributes = ["id_attr"]
+        cpp_paren_attributes = ["paren_attr"]
+
+    cases = {
+        '6.62607015e-34q_J': 'clL_Zli3q_JEL6.62607015e-34EE',
+        '6.62607015e-34q_J * 1q_s': 'mlclL_Zli3q_JEL6.62607015e-34EEclL_Zli3q_sEL1EE',
+        '42q_m': 'clL_Zli3q_mEL42EE',
+        '"abc"_x': 'clL_Zli2_xELA3_KcEE',
+        "'x'_y": 'clL_Zli2_yEc120E',
+        'u8"hi"_u8s': 'clL_Zli4_u8sELA4_KDuEE',
+        "1'000'000q_m": "clL_Zli3q_mEL1'000'000EE",
+        '0x1.fp+2q_J': 'clL_Zli3q_JEL0x1.fp+2EE',
+        '1ULL_k': 'clL_Zli2_kEL1ULLEE',
+    }
+
+    for expr, expected_id in cases.items():
+        parser = DefinitionParser(expr, location=None, config=Config())
+        parser.allowFallbackExpressionParsing = False
+        ast = parser.parse_expression()
+        parser.assert_end()
+        assert str(ast) == expr
+        assert ast.get_id(2) == expected_id
+
+    prefixed_strings = {
+        'u"hi"': 'LA3_KDsE',
+        'U"hi"': 'LA3_KDiE',
+        'L"hi"': 'LA3_KwE',
+        'u8"hi"': 'LA4_KDuE',
+    }
+
+    for expr, expected_id in prefixed_strings.items():
+        parser = DefinitionParser(expr, location=None, config=Config())
+        parser.allowFallbackExpressionParsing = False
+        ast = parser.parse_expression()
+        parser.assert_end()
+        assert str(ast) == expr
+        assert ast.get_id(2) == expected_id
+
+
+def test_user_defined_literal_declarations():
+    declarations = [
+        ('member', 'constexpr auto planck_constant = 6.62607015e-34q_J * 1q_s'),
+        ('member', 'constexpr auto n = 42q_m'),
+        ('member', 'constexpr auto tag = "abc"_x'),
+        ('member', "constexpr auto c = 'x'_y"),
+        ('member', 'constexpr auto s = u8"hi"_u8s'),
+        ('member', "constexpr auto d = 1'000'000q_m"),
+        ('member', 'constexpr auto hf = 0x1.fp+2q_J'),
+        ('member', 'constexpr auto mixed = 1ULL_k'),
+        ('type', 'template<typename T, int N = 42q_m> X'),
+    ]
+
+    for objtype, declaration in declarations:
+        ast = parse(objtype, declaration)
+        assert str(ast) == declaration
+
+
 def test_attributes():
     # style: C++
     check('member', '[[]] int f', {1: 'f__i', 2: '1f'})
@@ -918,6 +977,13 @@ def test_build_domain_cpp_backslash_ok(app, status, warning):
 def test_build_domain_cpp_semicolon(app, status, warning):
     app.builder.build_all()
     ws = filter_warnings(warning, "semicolon")
+    assert len(ws) == 0
+
+
+@pytest.mark.sphinx(testroot='domain-cpp', confoverrides={'nitpicky': True})
+def test_build_domain_cpp_user_defined_literals(app, status, warning):
+    app.builder.build_all()
+    ws = filter_warnings(warning, "user-defined-literals")
     assert len(ws) == 0
 
 
