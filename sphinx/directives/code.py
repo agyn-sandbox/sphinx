@@ -191,6 +191,8 @@ class LiteralIncludeReader:
         self.options = options
         self.encoding = options.get('encoding', config.source_encoding)
         self.lineno_start = self.options.get('lineno-start', 1)
+        self._prepend_indent = ''
+        self._append_indent = ''
 
         self.parse_options()
 
@@ -220,16 +222,20 @@ class LiteralIncludeReader:
         if 'diff' in self.options:
             lines = self.show_diff()
         else:
+            self._prepend_indent = ''
+            self._append_indent = ''
             filters = [self.pyobject_filter,
                        self.start_filter,
                        self.end_filter,
-                       self.lines_filter,
-                       self.prepend_filter,
-                       self.append_filter,
-                       self.dedent_filter]
+                       self.lines_filter]
             lines = self.read_file(self.filename, location=location)
             for func in filters:
                 lines = func(lines, location=location)
+
+            lines = self.dedent_filter(lines, location=location)
+            self._prepare_insert_indents(lines)
+            lines = self.prepend_filter(lines, location=location)
+            lines = self.append_filter(lines, location=location)
 
         return ''.join(lines), len(lines)
 
@@ -343,14 +349,14 @@ class LiteralIncludeReader:
     def prepend_filter(self, lines: List[str], location: Tuple[str, int] = None) -> List[str]:
         prepend = self.options.get('prepend')
         if prepend:
-            lines.insert(0, prepend + '\n')
+            lines.insert(0, f"{self._prepend_indent}{prepend}\n")
 
         return lines
 
     def append_filter(self, lines: List[str], location: Tuple[str, int] = None) -> List[str]:
         append = self.options.get('append')
         if append:
-            lines.append(append + '\n')
+            lines.append(f"{self._append_indent}{append}\n")
 
         return lines
 
@@ -359,6 +365,37 @@ class LiteralIncludeReader:
             return dedent_lines(lines, self.options.get('dedent'), location=location)
         else:
             return lines
+
+    def _prepare_insert_indents(self, lines: List[str]) -> None:
+        base_indent = self._auto_insert_indent(lines)
+        prepend_override = self.options.get('prepend-indent')
+        append_override = self.options.get('append-indent')
+        prepend_value = self.options.get('prepend')
+        append_value = self.options.get('append')
+
+        if prepend_override is None:
+            if prepend_value and prepend_value[:1] in (' ', '\t'):
+                self._prepend_indent = ''
+            else:
+                self._prepend_indent = base_indent
+        else:
+            self._prepend_indent = ' ' * prepend_override
+
+        if append_override is None:
+            if append_value and append_value[:1] in (' ', '\t'):
+                self._append_indent = ''
+            else:
+                self._append_indent = base_indent
+        else:
+            self._append_indent = ' ' * append_override
+
+    def _auto_insert_indent(self, lines: List[str]) -> str:
+        for line in lines:
+            if line.strip():
+                stripped = line.lstrip(' \t')
+                return line[:len(line) - len(stripped)]
+
+        return ''
 
 
 class LiteralInclude(SphinxDirective):
@@ -388,7 +425,9 @@ class LiteralInclude(SphinxDirective):
         'start-at': directives.unchanged_required,
         'end-at': directives.unchanged_required,
         'prepend': directives.unchanged_required,
+        'prepend-indent': directives.nonnegative_int,
         'append': directives.unchanged_required,
+        'append-indent': directives.nonnegative_int,
         'emphasize-lines': directives.unchanged_required,
         'caption': directives.unchanged,
         'class': directives.class_option,

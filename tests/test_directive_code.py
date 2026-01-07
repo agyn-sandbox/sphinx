@@ -217,6 +217,103 @@ def test_LiteralIncludeReader_prepend(literal_inc_path):
 
 
 @pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_prepend_aligns_without_dedent(testroot):
+    options = {'pyobject': 'Bar.baz', 'prepend': 'if ready:', 'append': 'return result'}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content == ("    if ready:\n"
+                       "    def baz():\n"
+                       "        pass\n"
+                       "    return result\n")
+    assert lines == 4
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_prepend_aligns_with_dedent(testroot):
+    options = {'pyobject': 'Bar.baz', 'prepend': 'if ready:', 'append': 'return result',
+               'dedent': 4}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content == ("if ready:\n"
+                       "def baz():\n"
+                       "    pass\n"
+                       "return result\n")
+    assert lines == 4
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_prepend_preserves_tabs(testroot):
+    options = {'pyobject': 'Qux.quux', 'prepend': 'if ready:', 'append': 'return result'}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content == ('\tif ready:\n'
+                       '\tdef quux(self):\n'
+                       '\t\tpass\n'
+                       '\treturn result\n')
+    assert lines == 4
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_prepend_respects_tabwidth(testroot):
+    options = {'pyobject': 'Qux.quux', 'prepend': 'if ready:', 'append': 'return result',
+               'tab-width': 4}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content == ("    if ready:\n"
+                       "    def quux(self):\n"
+                       "        pass\n"
+                       "    return result\n")
+    assert lines == 4
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_prepend_respects_tabwidth_wide(testroot):
+    options = {'pyobject': 'Qux.quux', 'prepend': 'if ready:', 'append': 'return result',
+               'tab-width': 8}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content == ("        if ready:\n"
+                       "        def quux(self):\n"
+                       "                pass\n"
+                       "        return result\n")
+    assert lines == 4
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_insert_indent_overrides(testroot):
+    options = {'pyobject': 'Bar.baz',
+               'prepend': 'if ready:',
+               'prepend-indent': 2,
+               'append': 'return result',
+               'append-indent': 1}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content == ("  if ready:\n"
+                       "    def baz():\n"
+                       "        pass\n"
+                       " return result\n")
+    assert lines == 4
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_prepend_retains_manual_indent(testroot):
+    options = {'pyobject': 'Bar.baz', 'prepend': '    manual prepend'}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content.startswith("    manual prepend\n    def baz():\n")
+    assert lines == 3
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
+def test_LiteralIncludeReader_append_retains_manual_tabs(testroot):
+    options = {'pyobject': 'Bar.baz', 'append': '\tmanual append'}
+    reader = LiteralIncludeReader(testroot / 'target.py', options, DUMMY_CONFIG)
+    content, lines = reader.read()
+    assert content.endswith("\tmanual append\n")
+    assert lines == 3
+
+
+@pytest.mark.xfail(os.name != 'posix', reason="Not working on windows")
 def test_LiteralIncludeReader_dedent(literal_inc_path):
     # dedent: 2
     options = {'lines': '9-11', 'dedent': 2}
@@ -425,6 +522,12 @@ def test_literal_include_linenos(app, status, warning):
     # :lines: 5-9
     assert ('<span class="linenos">5</span><span class="k">class</span> '
             '<span class="nc">Foo</span><span class="p">:</span>' in html)
+
+
+@pytest.mark.sphinx('html', testroot='directive-code')
+def test_literal_include_dedent_prepend_no_warning(app, status, warning):
+    app.builder.build(['dedent-prepend'])
+    assert 'non-whitespace stripped by dedent' not in warning.getvalue()
 
 
 @pytest.mark.sphinx('latex', testroot='directive-code')
