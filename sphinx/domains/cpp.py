@@ -10,7 +10,8 @@
 
 import re
 from typing import (
-    Any, Callable, Dict, Generator, Iterator, List, Tuple, Type, TypeVar, Union, Optional
+    Any, Callable, Dict, Generator, Iterator, List, Tuple, Type, TypeVar, Union, Optional,
+    cast
 )
 
 from docutils import nodes
@@ -298,6 +299,8 @@ T = TypeVar('T')
 
 _string_re = re.compile(r"[LuU8]?('([^'\\]*(?:\\.[^'\\]*)*)'"
                         r'|"([^"\\]*(?:\\.[^"\\]*)*)")', re.S)
+_udl_suffix_re = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_int_suffix_re = re.compile(r"(?:[uU](?:[lL]{1,2})?|(?:[lL]{1,2})[uU]?)")
 _visibility_re = re.compile(r'\b(public|private|protected)\b')
 _operator_re = re.compile(r'''(?x)
         \[\s*\]
@@ -4662,8 +4665,21 @@ class DefinitionParser(BaseParser):
                       integer_literal_re, octal_literal_re]:
             pos = self.pos
             if self.match(regex):
-                while self.current_char in 'uUlLfF':
-                    self.pos += 1
+                consumed_builtin = False
+                if regex is float_literal_re:
+                    if not self.eof and self.current_char in 'fFlL':
+                        consumed_builtin = True
+                        self.pos += 1
+                else:
+                    if not self.eof:
+                        builtin_match = _int_suffix_re.match(self.definition, self.pos)
+                        if builtin_match:
+                            self.pos = builtin_match.end()
+                            consumed_builtin = True
+                if not consumed_builtin:
+                    udl_match = _udl_suffix_re.match(self.definition, self.pos)
+                    if udl_match:
+                        self.pos = udl_match.end()
                 return ASTNumberLiteral(self.definition[pos:self.pos])
 
         string = self._parse_string()
@@ -6914,7 +6930,7 @@ class CPPExprRole(SphinxRole):
         if asCode:
             # render the expression as inline code
             self.class_type = 'cpp-expr'
-            self.node_type = nodes.literal  # type: Type[TextElement]
+            self.node_type = cast(Type[TextElement], nodes.literal)
         else:
             # render the expression as inline text
             self.class_type = 'cpp-texpr'
