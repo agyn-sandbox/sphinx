@@ -10,11 +10,17 @@
 
 import contextlib
 import os
+import re
 import sys
 from importlib.abc import Loader, MetaPathFinder
 from importlib.machinery import ModuleSpec
 from types import FunctionType, MethodType, ModuleType
 from typing import Any, Generator, Iterator, List, Sequence, Tuple, Union
+
+try:  # Python 3.8+
+    from typing import get_args, get_origin
+except ImportError:  # Python 3.7
+    get_args = get_origin = None
 
 from sphinx.util import logging
 
@@ -52,7 +58,7 @@ class _MockObject:
     def __mro_entries__(self, bases: Tuple) -> Tuple:
         return (self.__class__,)
 
-    def __getitem__(self, key: str) -> "_MockObject":
+    def __getitem__(self, key: Any) -> "_MockObject":
         return _make_subclass(key, self.__display_name__, self.__class__)()
 
     def __getattr__(self, key: str) -> "_MockObject":
@@ -68,12 +74,102 @@ class _MockObject:
         return self.__display_name__
 
 
-def _make_subclass(name: str, module: str, superclass: Any = _MockObject,
+def _get_origin_and_args(tp: Any) -> Tuple[Any, Tuple[Any, ...]]:
+    if get_origin:
+        origin = get_origin(tp)
+        if origin is not None:
+            args = get_args(tp) if get_args else ()
+            return origin, tuple(args)
+
+    origin = getattr(tp, '__origin__', None)
+    args = getattr(tp, '__args__', ())
+    if args is None:
+        args = ()
+
+    return origin, tuple(args)
+
+
+def _stringify(value: Any) -> str:
+    if isinstance(value, tuple):
+        return ', '.join(_stringify(item) for item in value)
+
+    display_name = getattr(value, '__display_name__', None)
+    if display_name:
+        return display_name
+
+    value_type = type(value).__name__
+    if value_type == 'TypeVar':
+        return getattr(value, '__name__', str(value).lstrip('~'))
+
+    origin, args = _get_origin_and_args(value)
+    if origin is not None:
+        base_name = getattr(value, '__qualname__', None)
+        if base_name is None:
+            base_name = getattr(value, '_name', None)
+        module = getattr(value, '__module__', None)
+
+        if base_name is None:
+            base_name = (getattr(origin, '__qualname__', None) or
+                         getattr(origin, '__name__', None) or
+                         str(origin))
+            module = getattr(origin, '__module__', module)
+
+        if module and module not in ('builtins',):
+            base = '%s.%s' % (module, base_name)
+        else:
+            base = base_name
+
+        if args:
+            rendered_args = ', '.join(_stringify(arg) for arg in args)
+            return '%s[%s]' % (base, rendered_args)
+        else:
+            return base
+
+    if hasattr(value, '__module__') and hasattr(value, '__qualname__'):
+        module = value.__module__
+        qualname = value.__qualname__
+        if module and module not in ('builtins',):
+            return '%s.%s' % (module, qualname)
+        return qualname
+
+    text = str(value)
+    if text.startswith('~'):
+        return text[1:]
+    return text
+
+
+def _sanitize_identifier(text: str) -> str:
+    sanitized = ''.join(ch if (ch.isalnum() or ch == '_') else '_' for ch in text)
+    sanitized = re.sub('_+', '_', sanitized).strip('_')
+    if not sanitized:
+        sanitized = 'Mock'
+    if sanitized[0].isdigit():
+        sanitized = '_' + sanitized
+    return sanitized
+
+
+def _coerce_type_and_display(name: Any, module: str, superclass: Any) -> Tuple[str, str]:
+    if isinstance(name, str):
+        display_name = module + '.' + name if module else name
+        return name, display_name
+
+    rendered = _stringify(name)
+    display_suffix = '[%s]' % rendered if rendered else '[]'
+
+    type_base = getattr(superclass, '__name__', '_MockObject')
+    identifier = _sanitize_identifier('%s_%s' % (type_base, rendered))
+    display_name = (module or type_base) + display_suffix
+
+    return identifier, display_name
+
+
+def _make_subclass(name: Any, module: str, superclass: Any = _MockObject,
                    attributes: Any = None) -> Any:
-    attrs = {'__module__': module, '__display_name__': module + '.' + name}
+    type_name, display_name = _coerce_type_and_display(name, module, superclass)
+    attrs = {'__module__': module, '__display_name__': display_name}
     attrs.update(attributes or {})
 
-    return type(name, (superclass,), attrs)
+    return type(type_name, (superclass,), attrs)
 
 
 class _MockModule(ModuleType):
