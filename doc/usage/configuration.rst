@@ -744,6 +744,16 @@ documentation on :ref:`intl` for details.
    :file:`./locale/{language}/LC_MESSAGES/sphinx.mo`.  The text domain of
    individual documents depends on :confval:`gettext_compact`.
 
+   For the ``sphinx`` domain, Sphinx loads catalogs from project directories in
+   the order listed here before falling back to the bundled
+   :file:`sphinx/locale` catalog and finally the system locale directory.  This
+   means earlier entries in :confval:`locale_dirs` override later ones and the
+   packaged translations.
+
+   Sphinx compiles any out-of-date ``.po`` files found here into ``.mo`` files
+   at startup for the ``sphinx`` domain, so project-local overrides take effect
+   without running :program:`msgfmt` manually.
+
    The default is ``['locales']``.
 
    .. versionchanged:: 1.5
